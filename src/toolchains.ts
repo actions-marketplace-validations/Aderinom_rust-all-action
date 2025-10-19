@@ -83,7 +83,7 @@ export async function prepareToolchain(
     const pathGuess = await resolveToolchainPath(toolchain);
 
     const cacheKey = cachePrefix
-      ? `${cachePrefix}-${toolchain}-${pathGuess?.postfix}`
+      ? `${cachePrefix}-${toolchain}${pathGuess?.postfix}`
       : undefined;
 
     if (
