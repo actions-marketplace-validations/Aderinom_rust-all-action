@@ -40150,293 +40150,328 @@ module.exports = {
 
 "use strict";
 
-// Copied from https://github.com/clechasseur/rs-actions-core/
-// The MIT License (MIT)
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Cargo = void 0;
-exports.resolveVersion = resolveVersion;
 const tslib_1 = __nccwpck_require__(31577);
-// Copyright (c) 2023-2025 Charles Lechasseur, actions-rs team and contributors
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-// Modifications are licensed under the UNLICENSE.
 const cache = tslib_1.__importStar(__nccwpck_require__(95291));
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
 const exec = tslib_1.__importStar(__nccwpck_require__(58872));
 const http = tslib_1.__importStar(__nccwpck_require__(80787));
 const io = tslib_1.__importStar(__nccwpck_require__(73357));
-const console_1 = __nccwpck_require__(64236);
-const path = tslib_1.__importStar(__nccwpck_require__(16928));
+const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
 class Cargo {
-    path;
-    constructor(path) {
-        this.path = path;
-    }
     /**
-     * Fetches the currently-installed version of cargo.
-     */
-    static async get() {
-        try {
-            const path = await io.which('cargo', true);
-            return new Cargo(path);
-        }
-        catch (error) {
-            core.error('cargo is not installed on this runner, see https://help.github.com/en/articles/software-in-virtual-environments-for-github-actions');
-            core.error('To install it, use an action such as: https://github.com/actions-rust-lang/setup-rust-toolchain');
-            throw error;
-        }
-    }
-    /**
-     * Looks for a cached version of `program`. If none is found,
-     * executes `cargo install ${program}` and caches the result.
+     * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
+     * Optionally restores/saves to cache.
      *
-     * @param program Program to install.
-     * @param version Program version to install. If `undefined` or set to `'latest'`,
-     *                the latest version will be installed.
-     * @param primaryKey Primary cache key to use when caching program. If not
-     *                   specified no caching will be done.
-     * @param restoreKeys Optional additional cache keys to use when looking for
-     *                    a cached version of the program.
-     * @returns Path to installed program. Since program will be installed in
-     *          the cargo bin directory which is on the `PATH`, this will be
-     *          equal to `program` currently.
+     * @param program Program name (e.g. "cargo-nextest")
+     * @param version Version or "latest"
+     * @param cachePrefix Cache key prefix (omit or "no-cache" to skip caching)
+     * @param restoreKeys Optional list of restore keys
+     * @param useBinstall Use cargo-binstall if true
      */
-    async install(program, version, primaryKey, restoreKeys) {
-        // Check if program is already installed, can't check version
-        if (await this.isInstalled(program)) {
-            return program;
-        }
-        // Fill in version if needed
-        if (!version || version === 'latest') {
-            version = (await resolveVersion(program)) ?? '';
-        }
-        // Try to get installation from cache
-        if (primaryKey &&
-            (await this.tryLoadProgramFromCache(program, version, primaryKey, restoreKeys))) {
-            return program;
-        }
-        await this.cargoInstall(program, version);
-        // Save installation to cache
-        if (primaryKey) {
-            await this.trySaveProgramToCache(program, version, primaryKey);
-        }
-        return program;
-    }
-    /**
-     * Looks for a cached version of `program`. If none is found,
-     * executes `cargo binstall ${program}` and caches the result.
-     *
-     * @param program Program to install.
-     * @param version Program version to install. If `undefined` or set to `'latest'`,
-     *                the latest version will be installed.
-     * @param primaryKey Primary cache key to use when caching program. If not
-     *                   specified no caching will be done.
-     * @param restoreKeys Optional additional cache keys to use when looking for
-     *                    a cached version of the program.
-     * @returns Path to installed program. Since program will be installed in
-     *          the cargo bin directory which is on the `PATH`, this will be
-     *          equal to `program` currently.
-     */
-    async binstall(program, version, primaryKey, restoreKeys) {
-        // Check if program is already installed, can't check version
-        if (await this.isInstalled(program)) {
-            return program;
-        }
-        // Ensure cargo-binstall is installed
-        await this.install('cargo-binstall', 'latest', primaryKey, restoreKeys);
-        // Fill in version if needed
-        if (!version || version === 'latest') {
-            version = (await resolveVersion(program)) ?? '';
-        }
-        // Try to get installation from cache
-        if (primaryKey &&
-            (await this.tryLoadProgramFromCache(program, version, primaryKey, restoreKeys))) {
-            return program;
-        }
-        await this.cargoBinstall(program, version);
-        // Save installation to cache
-        if (primaryKey) {
-            await this.trySaveProgramToCache(program, version, primaryKey);
-        }
-        return program;
-    }
-    /**
-     * Runs a cargo command.
-     *
-     * @param args Arguments to pass to cargo.
-     * @param options Optional exec options.
-     * @returns Cargo exit code.
-     */
-    async exec(args, options) {
-        return await exec.exec(this.path, args, options);
-    }
-    // Tries to load a cached version of a program.
-    //
-    // Returns true if cache was found and loaded, false otherwise.
-    async tryLoadProgramFromCache(program, version, primaryKey, restoreKeys) {
-        const cachePath = [path.join(path.dirname(this.path), program)];
-        const programKey = `${primaryKey}-${program}-${version}`;
-        const programRestoreKeys = (restoreKeys ?? []).map((key) => `${program}-${version}-${key}`);
-        if (primaryKey !== 'no-cache') {
-            const cacheKey = await cache.restoreCache(cachePath, programKey, programRestoreKeys);
-            if (cacheKey) {
-                core.info(`Using cached \`${program}@${version}\``);
+    static async install(program, version = 'latest', cachePrefix, restoreKeys, useBinstall = true) {
+        const cargoPath = await io.which('cargo', true);
+        const binDir = path_1.default.dirname(cargoPath);
+        const cachePath = [path_1.default.join(binDir, program)];
+        // Helper to check if program is already installed
+        async function isInstalled() {
+            try {
+                await io.which(program, true);
                 return true;
             }
-        }
-        return false;
-    }
-    // Saves a program to cache.
-    //
-    // Returns true if cache was saved, false otherwise.
-    async trySaveProgramToCache(program, version, primaryKey) {
-        const cachePath = [path.join(path.dirname(this.path), program)];
-        const programKey = `${primaryKey}-${program}-${version}`;
-        if (primaryKey === 'no-cache') {
-            return false;
-        }
-        try {
-            core.info(`Caching \`${program}@${version}\` with key \`${programKey}\``);
-            await cache.saveCache(cachePath, programKey);
-            return true;
-        }
-        catch (error) {
-            if (error.name === cache.ValidationError.name) {
-                throw error;
+            catch {
+                return false;
             }
-            else if (error.name === cache.ReserveCacheError.name) {
-                core.warning(`Caching failed: ${error.message}`);
+        }
+        // Helper to resolve latest version from crates.io
+        async function resolveVersion(crate) {
+            if (version && version !== 'latest')
+                return version;
+            const client = new http.HttpClient('rust-all-action');
+            const url = `https://crates.io/api/v1/crates/${crate}`;
+            const resp = await client.getJson(url);
+            if (!resp.result)
+                throw new Error('Unable to fetch latest crate version');
+            return resp.result.crate.newest_version;
+        }
+        // Helper to restore from cache
+        async function restoreFromCache(key) {
+            const restored = await cache.restoreCache(cachePath, key, restoreKeys);
+            if (restored) {
+                core.info(`Using cached ${program}@${version} from key ${restored}`);
+                return true;
             }
             return false;
         }
+        // Helper to save to cache
+        async function saveToCache(key) {
+            try {
+                await cache.saveCache(cachePath, key);
+                core.info(`Cached ${program}@${version} with key ${key}`);
+            }
+            catch (err) {
+                if (err.name === cache.ValidationError.name)
+                    throw err;
+                if (err.name === cache.ReserveCacheError.name)
+                    core.warning(`Caching failed: ${err.message}`);
+            }
+        }
+        // Check if already installed
+        if (await isInstalled()) {
+            core.debug(`${program} already installed`);
+            return;
+        }
+        // Restore from cache
+        const resolvedVersion = await resolveVersion(program);
+        const cacheKey = cachePrefix && cachePrefix !== 'no-cache'
+            ? `${cachePrefix}-${program}-${resolvedVersion}`
+            : undefined;
+        if (cacheKey && (await restoreFromCache(cacheKey)))
+            return;
+        // If binstall requested, ensure it's installed
+        if (useBinstall) {
+            await Cargo.install('cargo-binstall', 'latest', cachePrefix, restoreKeys, false);
+        }
+        // Install the program
+        await core.group(`${useBinstall ? 'binstall' : 'install'} ${program}@${resolvedVersion}`, async () => {
+            const args = useBinstall === true ? ['binstall', '--no-confirm'] : ['install'];
+            if (resolvedVersion && resolvedVersion !== 'latest') {
+                args.push('--version', resolvedVersion);
+            }
+            args.push(program);
+            await exec.exec(cargoPath, args);
+        });
+        // Save to cache
+        if (cacheKey)
+            await saveToCache(cacheKey);
+        return;
     }
-    // Installs a program using cargo-binstall
-    //
-    // Returns name of the installed program.
-    async cargoInstall(program, version) {
-        const args = ['install'];
-        if (version !== 'latest') {
-            args.push('--version');
-            args.push(version);
-        }
-        args.push(program);
-        await core.group(`install ${program}@${version}`, async () => await this.exec(args));
-        return program;
-    }
-    // Installs a program using cargo-binstall
-    //
-    // Returns name of the installed program.
-    async cargoBinstall(program, version) {
-        const args = ['binstall', '--no-confirm'];
-        if (version !== 'latest') {
-            args.push('--version');
-            args.push(version);
-        }
-        args.push(program);
-        await core.group(`binstall ${program}@${version}`, async () => await this.exec(args));
-        return program;
-    }
-    // Checks if a program is installed and available in PATH.
-    //
-    // This does not check if the program is of an expected version
-    async isInstalled(program) {
-        try {
-            const path = await io.which(program, true);
-            (0, console_1.debug)(`Found installed program "${program}" at path: ${path}`);
-            return path !== '';
-        }
-        catch {
-            (0, console_1.debug)(`Program "${program}" is not installed`);
-            return false;
-        }
+    // Executes a cargo command with given arguments
+    static async exec(args, options) {
+        await exec.exec('cargo', args, options);
     }
 }
 exports.Cargo = Cargo;
-/**
- * Resolves the latest version of a Cargo crate by contacting crates.io.
- *
- * @param crate Crate name.
- * @returns Latest crate version.
- */
-async function resolveVersion(crate) {
-    const url = `https://crates.io/api/v1/crates/${crate}`;
-    const client = new http.HttpClient('@clechasseur/rs-actions-core (https://github.com/clechasseur/rs-actions-core)');
-    const resp = await client.getJson(url); // eslint-disable-line @typescript-eslint/no-explicit-any
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (!resp.result) {
-        throw new Error('Unable to fetch latest crate version');
-    }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
-    return resp.result.crate.newest_version;
-}
 
 
 /***/ }),
 
-/***/ 53167:
+/***/ 15229:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
+// THIS FILE IS AUTO-GENERATED BY 'tools/generate-input.ts'. DO NOT EDIT MANUALLY.
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.defaultConfig = void 0;
-exports.loadConfig = loadConfig;
-const typedconf_1 = __nccwpck_require__(94488);
-exports.defaultConfig = {
-    run: ['test', 'clippy', 'doc', 'fmt', 'shear'],
-    project: './',
-    cacheKey: 'rax-installed',
-    flow: {
-        clippy: {
-            denyWarnings: true,
-        },
-        // Make sure the object exist
-        test: {},
-        fmt: {},
-        doc: {},
-        shear: {},
-        deny: {},
-    },
-};
-function loadConfig(env = process.env) {
-    const cfg = new typedconf_1.ConfigBuilder()
-        .applyStaticConfig(exports.defaultConfig)
-        .loadEnv(env, 'RAX', '_', { parser: (key, value) => {
-            // Special parser for run to split by comma
-            if (key === 'run') {
-                return value.split(',').map((s) => s.trim());
-            }
-            // Other values: try to parse as JSON, fallback to string
-            try {
-                return JSON.parse(value);
-            }
-            catch {
-                return value;
-            }
-        } })
-        .buildConfig();
-    // Set default toolchain for each workflow if not set
-    if (cfg.toolchain) {
-        for (const wf of Object.values(cfg.flow)) {
-            if (!wf.toolchain) {
-                wf.toolchain = cfg.toolchain;
-            }
+exports.loadInput = loadInput;
+const tslib_1 = __nccwpck_require__(31577);
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+function loadInput() {
+    const cfg = {};
+    {
+        let strvalue = core.getInput('project');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = '.';
+        }
+        if (value !== undefined) {
+            cfg['project'] = value;
+        }
+        else {
+            cfg['project'] = undefined;
         }
     }
-    // All workflow conf
+    {
+        let strvalue = core.getInput('run');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = 'all-default';
+        }
+        if (value !== undefined) {
+            cfg['run'] = value.split(',');
+        }
+        else {
+            cfg['run'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('cacheKey');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = 'rax-cache';
+        }
+        if (value !== undefined) {
+            cfg['cacheKey'] = value;
+        }
+        else {
+            cfg['cacheKey'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['toolchain'] = value;
+        }
+        else {
+            cfg['toolchain'] = undefined;
+        }
+    }
+    cfg['flow'] = {};
+    cfg['flow']['test'] = {};
+    {
+        let strvalue = core.getInput('flow-test-toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['test']['toolchain'] = value;
+        }
+        else {
+            cfg['flow']['test']['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-test-overrideArgs');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['test']['overrideArgs'] = value;
+        }
+        else {
+            cfg['flow']['test']['overrideArgs'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-test-failFast');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = 'false';
+        }
+        if (value !== undefined) {
+            cfg['flow']['test']['failFast'] = value.toLowerCase() === 'true';
+        }
+        else {
+            cfg['flow']['test']['failFast'] = undefined;
+        }
+    }
+    cfg['flow']['clippy'] = {};
+    {
+        let strvalue = core.getInput('flow-clippy-toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['clippy']['toolchain'] = value;
+        }
+        else {
+            cfg['flow']['clippy']['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-clippy-overrideArgs');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['clippy']['overrideArgs'] = value;
+        }
+        else {
+            cfg['flow']['clippy']['overrideArgs'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-clippy-denyWarnings');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = 'true';
+        }
+        if (value !== undefined) {
+            cfg['flow']['clippy']['denyWarnings'] =
+                value.toLowerCase() === 'true';
+        }
+        else {
+            cfg['flow']['clippy']['denyWarnings'] = undefined;
+        }
+    }
+    cfg['flow']['fmt'] = {};
+    {
+        let strvalue = core.getInput('flow-fmt-toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['fmt']['toolchain'] = value;
+        }
+        else {
+            cfg['flow']['fmt']['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-fmt-overrideArgs');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['fmt']['overrideArgs'] = value;
+        }
+        else {
+            cfg['flow']['fmt']['overrideArgs'] = undefined;
+        }
+    }
+    cfg['flow']['doc'] = {};
+    {
+        let strvalue = core.getInput('flow-doc-toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['doc']['toolchain'] = value;
+        }
+        else {
+            cfg['flow']['doc']['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-doc-overrideArgs');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['doc']['overrideArgs'] = value;
+        }
+        else {
+            cfg['flow']['doc']['overrideArgs'] = undefined;
+        }
+    }
+    cfg['flow']['shear'] = {};
+    {
+        let strvalue = core.getInput('flow-shear-toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['shear']['toolchain'] = value;
+        }
+        else {
+            cfg['flow']['shear']['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-shear-overrideArgs');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['shear']['overrideArgs'] = value;
+        }
+        else {
+            cfg['flow']['shear']['overrideArgs'] = undefined;
+        }
+    }
+    cfg['flow']['deny'] = {};
+    {
+        let strvalue = core.getInput('flow-deny-toolchain');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['deny']['toolchain'] = value;
+        }
+        else {
+            cfg['flow']['deny']['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('flow-deny-overrideArgs');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['flow']['deny']['overrideArgs'] = value;
+        }
+        else {
+            cfg['flow']['deny']['overrideArgs'] = undefined;
+        }
+    }
     return cfg;
 }
 
@@ -40455,13 +40490,28 @@ const tslib_1 = __nccwpck_require__(31577);
 const core_1 = __nccwpck_require__(59999);
 const string_argv_1 = tslib_1.__importDefault(__nccwpck_require__(30761));
 const sccache_js_1 = __nccwpck_require__(55893);
+const toolchains_js_1 = __nccwpck_require__(15685);
 const workflows_js_1 = __nccwpck_require__(68027);
+// Default workflows to run if 'all' is specified
+const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 // Main function to run selected workflows
 //
 // Returns true if all workflows succeeded, false otherwise
-async function run(cargo, cfg) {
+async function run(cfg) {
     (0, sccache_js_1.check_sccache)();
-    // Ordered by fastest to slowest
+    // Prepare toolchains
+    const toolchains = new Set();
+    if (cfg.toolchain) {
+        toolchains.add(cfg.toolchain);
+    }
+    for (const flow of Object.values(cfg.flow)) {
+        if (flow.toolchain) {
+            toolchains.add(flow.toolchain);
+        }
+    }
+    for (const tc of toolchains) {
+        await (0, toolchains_js_1.prepareToolchain)(tc, cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache');
+    }
     const allWorkflows = [
         new workflows_js_1.FormatWorkflow(workflowConfig(cfg, 'fmt')),
         new workflows_js_1.ClippyWorkflow(workflowConfig(cfg, 'clippy')),
@@ -40470,13 +40520,20 @@ async function run(cargo, cfg) {
         new workflows_js_1.DocsWorkflow(workflowConfig(cfg, 'doc')),
         new workflows_js_1.DenyWorkflow(workflowConfig(cfg, 'deny')),
     ];
-    const enabledWorkflows = allWorkflows.filter((wf) => cfg.run.includes(wf.name));
+    let runfilter = cfg.run.flatMap((r) => {
+        if (r === 'all-default') {
+            return all_default;
+        }
+        else {
+            return [r];
+        }
+    });
+    const enabledWorkflows = allWorkflows.filter((wf) => runfilter.includes(wf.name));
     let allSucceeded = true;
     for (const wf of enabledWorkflows) {
-        (0, core_1.info)(`Running workflow: ${wf.name}`);
         await (0, core_1.group)(`${wf.name}`, async () => {
             try {
-                await wf.run(cargo);
+                await wf.run();
             }
             catch (e) {
                 allSucceeded = false;
@@ -40489,23 +40546,26 @@ async function run(cargo, cfg) {
 // Helper to build workflow config by merging base config with specific flow config
 function workflowConfig(cfg, flow) {
     let cacheKey = undefined;
+    // Set to default cache key unless 'no-cache' is specified
     if (cfg.cacheKey !== 'no-cache') {
         cacheKey = cfg.cacheKey;
     }
+    const flowConfig = structuredClone(cfg.flow[flow]);
+    const overrideArgs = typeof flowConfig.overrideArgs === 'string'
+        ? (0, string_argv_1.default)(flowConfig.overrideArgs)
+        : undefined;
+    // Base config common to all workflows, defined by the top level cfg
     const baseConfig = {
         project: cfg.project,
         toolchain: cfg.toolchain,
         cacheKey,
     };
-    const flowConfig = structuredClone(cfg.flow[flow]);
-    flowConfig.overrideArgs =
-        typeof flowConfig.overrideArgs === 'string'
-            ? (0, string_argv_1.default)(flowConfig.overrideArgs)
-            : [];
-    return {
+    const finalConfig = {
         ...baseConfig,
         ...flowConfig,
     };
+    finalConfig.overrideArgs = overrideArgs;
+    return finalConfig;
 }
 
 
@@ -40533,45 +40593,120 @@ function check_sccache() {
 
 /***/ }),
 
+/***/ 15685:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.prepareToolchain = prepareToolchain;
+const tslib_1 = __nccwpck_require__(31577);
+const cache = tslib_1.__importStar(__nccwpck_require__(95291));
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+const exec = tslib_1.__importStar(__nccwpck_require__(58872));
+const fs_1 = __nccwpck_require__(79896);
+const promises_1 = __nccwpck_require__(91943);
+const os_1 = tslib_1.__importDefault(__nccwpck_require__(70857));
+const path = tslib_1.__importStar(__nccwpck_require__(16928));
+// Lists installed Rust toolchains
+async function listToolchains() {
+    const dir = path.join(os_1.default.homedir(), '.rustup', 'toolchains');
+    try {
+        return await (0, promises_1.readdir)(dir);
+    }
+    catch (err) {
+        throw new Error(`Cannot read toolchains directory: ${err}`);
+    }
+}
+// Resolves the full path of a toolchain installation
+async function resolveToolchainPath(toolchain) {
+    const toolchains = await listToolchains();
+    const stable = toolchains.find((t) => t.startsWith('stable'));
+    if (!stable)
+        return null;
+    const postfix = stable.slice(stable.indexOf('-'));
+    const foundPath = path.join(os_1.default.homedir(), '.rustup', 'toolchains', `${toolchain}${postfix}`);
+    return {
+        path: foundPath,
+        postfix,
+    };
+}
+// Prepares a Rust toolchain by installing it and caching if needed
+async function restoreFromCache(toolchainPath, key) {
+    const restored = await cache.restoreCache([toolchainPath], key);
+    if (restored) {
+        core.info(`Restored ${toolchainPath} from cache key ${restored}`);
+        return true;
+    }
+    return false;
+}
+// Saves a Rust toolchain installation to cache
+async function saveToCache(toolchainPath, key) {
+    if (!(0, fs_1.existsSync)(toolchainPath)) {
+        core.warning(`Expected path ${toolchainPath} missing, skip caching`);
+        return;
+    }
+    try {
+        await cache.saveCache([toolchainPath], key);
+        core.info(`Cached toolchain ${path.basename(toolchainPath)} with key ${key}`);
+    }
+    catch (err) {
+        if (err.name === cache.ValidationError.name)
+            throw err;
+        if (err.name === cache.ReserveCacheError.name)
+            core.warning(`Caching failed: ${err.message}`);
+    }
+}
+// Prepares the specified Rust toolchain, installing and caching as needed
+async function prepareToolchain(toolchain, cachePrefix) {
+    await core.group(`Preparing toolchain ${toolchain}`, async () => {
+        const toolchains = await listToolchains();
+        if (toolchains.some((t) => t.includes(toolchain))) {
+            core.debug(`Toolchain ${toolchain} already installed`);
+            return;
+        }
+        const pathGuess = await resolveToolchainPath(toolchain);
+        const cacheKey = cachePrefix
+            ? `${cachePrefix}-${toolchain}-${pathGuess?.postfix}`
+            : undefined;
+        if (cacheKey &&
+            pathGuess &&
+            (await restoreFromCache(pathGuess.path, cacheKey)))
+            return;
+        core.info(`Installing toolchain ${toolchain}`);
+        await exec.exec('rustup', ['install', toolchain]);
+        if (cacheKey && pathGuess)
+            await saveToCache(pathGuess.path, cacheKey);
+    });
+}
+
+
+/***/ }),
+
 /***/ 68027:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DenyWorkflow = exports.ShearWorkflow = exports.DocsWorkflow = exports.FormatWorkflow = exports.ClippyWorkflow = exports.TestWorkflow = void 0;
-// Helper to build cargo command with toolchain and flags
-function cargoCommand(command, config, defaultFlags) {
-    const cargoCommand = [];
-    if (config.toolchain) {
-        cargoCommand.push(`+${config.toolchain}`);
-    }
-    cargoCommand.push(command);
-    if (config.overrideFlags) {
-        cargoCommand.push(...config.overrideFlags);
-    }
-    else {
-        cargoCommand.push(...defaultFlags);
-    }
-    return cargoCommand;
-}
+const node_console_1 = __nccwpck_require__(37540);
+const cargo_1 = __nccwpck_require__(21253);
 class TestWorkflow {
     config;
     name = 'test';
     constructor(config) {
         this.config = config;
     }
-    async run(cargo) {
-        const cmd = cargoCommand('test', this.config, [
-            '--all',
-            '--locked',
-            '--all-targets',
-            '--all-features',
-        ]);
-        console.log(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
-        await cargo.exec(cmd, { cwd: this.config.project });
+    async run() {
+        const args = ['--all', '--locked', '--all-targets', '--all-features'];
+        if (!this.config.failFast) {
+            args.push('--no-fail-fast');
+        }
+        const cmd = cargoCommand('test', this.config, args);
+        (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
+        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
-    z;
 }
 exports.TestWorkflow = TestWorkflow;
 class ClippyWorkflow {
@@ -40580,15 +40715,15 @@ class ClippyWorkflow {
     constructor(config) {
         this.config = config;
     }
-    async run(cargo) {
+    async run() {
         const cmd = cargoCommand('clippy', this.config, [
             '--all',
             '--locked',
             '--all-targets',
             '--all-features',
         ]);
-        console.log(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
-        await cargo.exec(cmd, { cwd: this.config.project });
+        (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
+        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
 }
 exports.ClippyWorkflow = ClippyWorkflow;
@@ -40598,10 +40733,10 @@ class FormatWorkflow {
     constructor(config) {
         this.config = config;
     }
-    async run(cargo) {
+    async run() {
         const cmd = cargoCommand('fmt', this.config, ['--all', '--', '--check']);
-        console.log(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
-        await cargo.exec(cmd, { cwd: this.config.project });
+        (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
+        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
 }
 exports.FormatWorkflow = FormatWorkflow;
@@ -40611,14 +40746,14 @@ class DocsWorkflow {
     constructor(config) {
         this.config = config;
     }
-    async run(cargo) {
+    async run() {
         const cmd = cargoCommand('doc', this.config, [
             '--all',
             '--locked',
             '--no-deps',
         ]);
-        console.log(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
-        await cargo.exec(cmd, { cwd: this.config.project });
+        (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
+        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
 }
 exports.DocsWorkflow = DocsWorkflow;
@@ -40628,11 +40763,11 @@ class ShearWorkflow {
     constructor(config) {
         this.config = config;
     }
-    async run(cargo) {
-        await cargo.binstall('cargo-shear', 'latest', this.config.cacheKey);
+    async run() {
+        await cargo_1.Cargo.install('cargo-shear', 'latest', this.config.cacheKey);
         const cmd = cargoCommand('shear', this.config, []);
-        console.log(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
-        await cargo.exec(cmd, { cwd: this.config.project });
+        (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
+        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
 }
 exports.ShearWorkflow = ShearWorkflow;
@@ -40642,22 +40777,29 @@ class DenyWorkflow {
     constructor(config) {
         this.config = config;
     }
-    async run(cargo) {
-        await cargo.binstall('cargo-deny', 'latest', this.config.cacheKey);
+    async run() {
+        await cargo_1.Cargo.install('cargo-deny', 'latest', this.config.cacheKey);
         const cmd = cargoCommand('deny', this.config, ['check']);
-        console.log(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
-        await cargo.exec(cmd, { cwd: this.config.project });
+        (0, node_console_1.info)(`Executing command: 'cargo ${cmd.join(' ')}', in directory: ${this.config.project}`);
+        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
 }
 exports.DenyWorkflow = DenyWorkflow;
-
-
-/***/ }),
-
-/***/ 32142:
-/***/ ((module) => {
-
-module.exports = eval("require")("json5");
+// Helper to build cargo command with toolchain and flags
+function cargoCommand(command, config, args) {
+    const cargoCommand = [];
+    if (config.toolchain) {
+        cargoCommand.push(`+${config.toolchain}`);
+    }
+    cargoCommand.push(command);
+    if (config.overrideArgs) {
+        cargoCommand.push(...config.overrideArgs);
+    }
+    else {
+        cargoCommand.push(...args);
+    }
+    return cargoCommand;
+}
 
 
 /***/ }),
@@ -40742,6 +40884,14 @@ module.exports = require("fs");
 
 /***/ }),
 
+/***/ 91943:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("fs/promises");
+
+/***/ }),
+
 /***/ 58611:
 /***/ ((module) => {
 
@@ -40779,6 +40929,14 @@ module.exports = require("net");
 
 "use strict";
 module.exports = require("node:buffer");
+
+/***/ }),
+
+/***/ 37540:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:console");
 
 /***/ }),
 
@@ -83305,15 +83463,6 @@ function firstString() {
 
 /***/ }),
 
-/***/ 94488:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-function t(t,r){(null==r||r>t.length)&&(r=t.length);for(var n=0,e=Array(r);n<r;n++)e[n]=t[n];return e}function r(){return r=Object.assign?Object.assign.bind():function(t){for(var r=1;r<arguments.length;r++){var n=arguments[r];for(var e in n)({}).hasOwnProperty.call(n,e)&&(t[e]=n[e])}return t},r.apply(null,arguments)}function n(t){return n=Object.setPrototypeOf?Object.getPrototypeOf.bind():function(t){return t.__proto__||Object.getPrototypeOf(t)},n(t)}function e(t,r){t.prototype=Object.create(r.prototype),t.prototype.constructor=t,i(t,r)}function o(){try{var t=!Boolean.prototype.valueOf.call(Reflect.construct(Boolean,[],function(){}))}catch(t){}return(o=function(){return!!t})()}function i(t,r){return i=Object.setPrototypeOf?Object.setPrototypeOf.bind():function(t,r){return t.__proto__=r,t},i(t,r)}function c(t){var r="function"==typeof Map?new Map:void 0;return c=function(t){if(null===t||!function(t){try{return-1!==Function.toString.call(t).indexOf("[native code]")}catch(r){return"function"==typeof t}}(t))return t;if("function"!=typeof t)throw new TypeError("Super expression must either be null or a function");if(void 0!==r){if(r.has(t))return r.get(t);r.set(t,e)}function e(){return function(t,r,n){if(o())return Reflect.construct.apply(null,arguments);var e=[null];e.push.apply(e,r);var c=new(t.bind.apply(t,e));return n&&i(c,n.prototype),c}(t,arguments,n(this).constructor)}return e.prototype=Object.create(t.prototype,{constructor:{value:e,enumerable:!1,writable:!0,configurable:!0}}),i(e,t)},c(t)}function u(t,r){var n=function(t,r,e,o){if("object"!=typeof t||null===t||"object"!=typeof r||null===r)return e[o]=r;for(var i=0,c=Object.entries(r);i<c.length;i++){var u=c[i],f=u[0];n(t[f],u[1],t,f)}};if("object"!=typeof t||null===t||"object"!=typeof r||null===r)return r;for(var e=0,o=Object.entries(r);e<o.length;e++){var i=o[e],c=i[0];n(t[c],i[1],t,c)}return t}function f(t,r){return r.bind(t)}var a=/*#__PURE__*/function(t){function r(r){var n;return(n=t.call(this,"ConfigException : "+r)||this).name="ConfigException",n}return e(r,t),r}(/*#__PURE__*/c(Error)),l=/*#__PURE__*/function(){function n(){this.config={}}var e=n.prototype;return e.buildConfig=function(){return r({},this.config,{require:f(this,this.require),get:f(this,this.get)})},e.get=function(r){for(var n,e=this.config,o=function(r){var n="undefined"!=typeof Symbol&&r[Symbol.iterator]||r["@@iterator"];if(n)return(n=n.call(r)).next.bind(n);if(Array.isArray(r)||(n=function(r,n){if(r){if("string"==typeof r)return t(r,n);var e={}.toString.call(r).slice(8,-1);return"Object"===e&&r.constructor&&(e=r.constructor.name),"Map"===e||"Set"===e?Array.from(r):"Arguments"===e||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(e)?t(r,n):void 0}}(r))){n&&(r=n);var e=0;return function(){return e>=r.length?{done:!0}:{done:!1,value:r[e++]}}}throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}(r.split("."));!(n=o()).done;){if("object"!=typeof e)return;if(void 0===(e=e[n.value]))return}return e},e.applyStaticConfig=function(t){return u(this.config,t),this},e.applyDynamicConfig=function(t){return u(this.config,t),this},e.loadJsonFile=function(t,r){var n,e;void 0===r&&(r=!1);try{n=__nccwpck_require__(79896)}catch(t){throw new Error("Could not load module 'fs' - this function not be executed in the browser!",{cause:t})}try{e=n.readFileSync(t,{encoding:"utf-8"})}catch(n){if(r)return this;throw new Error("Failed to read json config file from: "+t,{cause:n})}var o,i=JSON.parse;try{i=(__nccwpck_require__(32142).parse)}catch(t){}try{o=i(e)}catch(r){throw new Error("Could not parse JSON in loaded config file from: "+t,{cause:r})}return this.applyDynamicConfig(o)},e.loadEnv=function(t,r,n,e){void 0===e&&(e={parseAsJson:!0});for(var o=0,i=Object.keys(t);o<i.length;o++){var c=i[o];if(c.startsWith(r+n)){for(var u=c.replace(r+n,""),f=u.split(n),a=this.config,l=0;l<f.length-1;l++){var s,p=f[l];a=null!=(s=a[p])?s:a[p]={}}var y=f.at(-1);if("parser"in e)a[y]=e.parser(u,t[c]);else if(e.parseAsJson)try{a[y]=JSON.parse(t[c])}catch(r){a[y]=t[c]}else a[y]=t[c]}}return this},e.require=function(t){var r=function(t,n,e){if(void 0===n)throw new a('The config key "'+e.join(".")+'" is required!');if("object"==typeof t){if("object"!=typeof n)throw new a('The config key "'+e.join(".")+'" is expected to have sub keys!');for(var o=0,i=Object.entries(t);o<i.length;o++){var c=i[o],u=c[0];r(c[1],n[u],[].concat(e,[u]))}}};return r(t,this.config,[]),this.config},n}(),s=/*#__PURE__*/function(t){function r(){return t.apply(this,arguments)||this}return e(r,t),r}(l);exports.AppliedConfigBuilder=l,exports.ConfigBuilder=s,exports.ConfigException=a;
-//# sourceMappingURL=index.cjs.map
-
-
-/***/ }),
-
 /***/ 93965:
 /***/ ((module) => {
 
@@ -83368,16 +83517,13 @@ var exports = __webpack_exports__;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core_1 = __nccwpck_require__(59999);
-const cargo_js_1 = __nccwpck_require__(21253);
-const config_js_1 = __nccwpck_require__(53167);
+const input_js_1 = __nccwpck_require__(15229);
 const lib_js_1 = __nccwpck_require__(71374);
 main();
 async function main() {
-    const cargo = await cargo_js_1.Cargo.get();
-    (0, core_1.info)(`Using cargo at path: ${cargo}`);
-    const cfg = (0, config_js_1.loadConfig)();
+    const cfg = (0, input_js_1.loadInput)();
     (0, core_1.info)('Using configuration:' + JSON.stringify(cfg, null, 0));
-    (0, lib_js_1.run)(cargo, cfg);
+    (0, lib_js_1.run)(cfg);
 }
 
 })();

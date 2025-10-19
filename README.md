@@ -1,14 +1,14 @@
-
 # Rust All Action
 
 Simple GitHub Action to run multiple Rust workflows.  
-Including: `test`, `clippy`, `fmt`, `doc`, and `shear`.  
+Including: `test`, `clippy`, `fmt`, `doc`, `shear`, `deny`.
 
 Designed as a baseline CI for Rust projects.
 
 By default:
 
 - Caches installed tools between runs
+- Caches installed toolchains
 - Supports workflow-specific toolchain and argument overrides
 
 To cache compilation between runs, use [sccache](https://github.com/Mozilla-Actions/sccache-action)
@@ -26,14 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: aderinom/rust-all-action@v1
-      - uses: aderinom/rust-all-action@v1
-        with:
-          run: 'deny'
 ```
 
-If you prefer running all jobs in parallel, use following config:
+If you prefer running seperate jobs, use following config:
 
-``` yaml
+```yaml
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -41,7 +38,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: aderinom/rust-all-action@v1
         with:
-          run: 'test, clippt'
+          run: 'test'
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aderinom/rust-all-action@v1
+        with:
+          run: 'clippy'
 
   fmt:
     runs-on: ubuntu-latest
@@ -66,27 +71,27 @@ jobs:
       - uses: aderinom/rust-all-action@v1
         with:
           run: 'shear'
-
 ```
 
 ## Inputs
 
-| Input       | Description                                               | Default                     |
-| ----------- | --------------------------------------------------------- | --------------------------- |
-| `project`   | Path to Rust project.                                     | `./`                        |
-| `cacheKey`  | Cache key for installed tools. Use `no-cache` to disable. | `rax-installed`             |
-| `run`       | Comma-separated list of workflows to execute.             | `test,clippy,doc,fmt,shear` |
-| `toolchain` | Default Rust toolchain.                                   | *(none)*                    |
+| Input       | Description                                               | Default       |
+| ----------- | --------------------------------------------------------- | ------------- |
+| `project`   | Path to Rust project.                                     | `./`          |
+| `cacheKey`  | Cache key for installed tools. Use `no-cache` to disable. | `rax-cache`   |
+| `run`       | Comma-separated list of workflows to execute.             | `all-default` |
+| `toolchain` | Default Rust toolchain.                                   | _(none)_      |
 
 ### Workflow Overrides
 
 Each workflow supports `toolchain` and `overrideArgs` inputs.
 `clippy` also supports `denyWarnings`.
 
-| Workflow | Input                      | Description                    | Example                       |
-| -------- | -------------------------- | ------------------------------ | ----------------------------- |
-| `test`   | `flow-test-toolchain`      | Override toolchain for tests.  | `nightly`                     |
-|          | `flow-test-overrideArgs`   | args for `cargo test`.         | `--all-features --release`    |
+| Workflow | Input                    | Description                   | Example                    |
+| -------- | ------------------------ | ----------------------------- | -------------------------- |
+| `test`   | `flow-test-toolchain`    | Override toolchain for tests. | `nightly`                  |
+|          | `flow-test-overrideArgs` | args for `cargo test`.        | `--all-features --release` |
+| ...      | ...                      | ...                           | ...                        |
 
 ## Contributing
 
@@ -96,7 +101,7 @@ Contributions are welcome. If you’d like to add another workflow or adjust exi
 
 ```bash
 pnpm i
-````
+```
 
 This installs all dependencies and development tooling.
 

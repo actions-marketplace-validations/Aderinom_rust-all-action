@@ -1,1 +1,2 @@
 dist/**
+__tests__/test-cargo-repo

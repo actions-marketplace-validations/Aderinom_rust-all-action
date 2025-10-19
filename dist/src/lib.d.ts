@@ -1,4 +1,9 @@
-import { Cargo } from './cargo.js';
-import { ConfigSchema } from './config.js';
-export declare function run(cargo: Cargo, cfg: ConfigSchema): Promise<boolean>;
-export declare function workflowConfig(cfg: ConfigSchema, flow: keyof ConfigSchema['flow']): any;
+import { Input } from './input.js';
+export declare function run(cfg: Input): Promise<boolean>;
+export type FlowConfig<T extends keyof Input['flow']> = Omit<Input['flow'][T], 'overrideArgs'> & {
+    project: string;
+    cacheKey: string;
+    toolchain?: string;
+    overrideArgs?: string[];
+};
+export declare function workflowConfig<T extends keyof Input['flow']>(cfg: Input, flow: T): FlowConfig<T>;
