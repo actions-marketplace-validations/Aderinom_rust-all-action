@@ -1,0 +1,99 @@
+name: rust all action
+description: >
+  Simple GitHub Action to run multiple Rust workflows,
+  includes test, clippy, fmt, doc, shear
+
+  Useable as a good default for Rust projects.
+
+  By default caches all installed tools between runs.
+
+  Ideally used in combination with sccache actions to cache
+  compiled artifacts between runs.
+
+  See https://github.com/Mozilla-Actions/sccache-action for sccache setup.
+inputs:
+  project:
+    description: 'Path to Rust project'
+    default: './'
+  cacheKey:
+    description: 'Cache key for installed tools'
+    default: 'rax-installed'
+  run:
+    description: 'Comma-separated list of workflows to execute'
+    default: 'test,clippy,doc,fmt,shear'
+  toolchain:
+    description: 'Default Rust toolchain, if not specified, will use whatever is installed'
+    required: false
+
+  flow-test-toolchain:
+    description: 'Override toolchain'
+    required: false
+  flow-test-overrideArgs:
+    description: 'arguments for cargo test (space-separated string)'
+    required: false
+
+  flow-clippy-denyWarnings:
+    description: 'Fail if clippy emits warnings'
+    default: 'true'
+  flow-clippy-toolchain:
+    description: 'Override toolchain'
+    required: false
+  flow-clippy-overrideArgs:
+    description: 'arguments for cargo clippy (space-separated string)'
+    required: false
+
+  flow-fmt-toolchain:
+    description: 'Override toolchain'
+    required: false
+  flow-fmt-overrideArgs:
+    description: 'arguments for cargo fmt (space-separated string)'
+    required: false
+
+  flow-doc-toolchain:
+    description: 'Override toolchain'
+    required: false
+  flow-doc-overrideArgs:
+    description: 'arguments for cargo doc (space-separated string)'
+    required: false
+
+  flow-shear-toolchain:
+    description: 'Override toolchain'
+    required: false
+  flow-shear-overrideArgs:
+    description: 'arguments for cargo shear (space-separated string)'
+    required: false
+
+  flow-deny-toolchain:
+    description: 'Override toolchain'
+    required: false
+  flow-deny-overrideArgs:
+    description: 'arguments for cargo deny (space-separated string)'
+    required: false
+
+runs:
+  using: node20
+  main: dist/index.js
+  env:
+    RAX_project: ${{ inputs.project }}
+    RAX_cacheKey: ${{ inputs.cacheKey }}
+    RAX_run: ${{ inputs.run }}
+    RAX_toolchain: ${{ inputs.toolchain }}
+
+    RAX_flow_test_toolchain: ${{ inputs.flow-test-toolchain }}
+    RAX_flow_test_overrideArgs: ${{ inputs.flow-test-overrideArgs }}
+
+    RAX_flow_clippy_denyWarnings: ${{ inputs.flow-clippy-denyWarnings }}
+    RAX_flow_clippy_toolchain: ${{ inputs.flow-clippy-toolchain }}
+    RAX_flow_clippy_overrideArgs: ${{ inputs.flow-clippy-overrideArgs }}
+
+    RAX_flow_fmt_toolchain: ${{ inputs.flow-fmt-toolchain }}
+    RAX_flow_fmt_overrideArgs: ${{ inputs.flow-fmt-overrideArgs }}
+
+    RAX_flow_doc_toolchain: ${{ inputs.flow-doc-toolchain }}
+    RAX_flow_doc_overrideArgs: ${{ inputs.flow-doc-overrideArgs }}
+
+    RAX_flow_shear_toolchain: ${{ inputs.flow-shear-toolchain }}
+    RAX_flow_shear_overrideArgs: ${{ inputs.flow-shear-overrideArgs }}
+
+    RAX_flow_deny_toolchain: ${{ inputs.flow-deny-toolchain }}
+    RAX_flow_deny_overrideArgs: ${{ inputs.flow-deny-overrideArgs }}

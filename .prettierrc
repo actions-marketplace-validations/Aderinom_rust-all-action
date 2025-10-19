@@ -1,0 +1,13 @@
+{
+  "singleQuote": true,
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": ["*.ts", "*.mts"],
+      "excludeFiles": ["./dist/**", "./node_modules/**"],
+      "options": {
+        "parser": "typescript"
+      }
+    }
+  ]
+}
