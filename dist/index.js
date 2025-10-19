@@ -40529,6 +40529,7 @@ async function run(cfg) {
         }
     });
     const enabledWorkflows = allWorkflows.filter((wf) => runfilter.includes(wf.name));
+    let failingWorkflows = [];
     let allSucceeded = true;
     for (const wf of enabledWorkflows) {
         await (0, core_1.group)(`${wf.name}`, async () => {
@@ -40538,8 +40539,15 @@ async function run(cfg) {
             catch (e) {
                 allSucceeded = false;
                 (0, core_1.setFailed)(`Workflow ${wf.name} failed: ${e}`);
+                failingWorkflows.push(wf.name);
             }
         });
+    }
+    if (!allSucceeded) {
+        (0, core_1.error)(`The following workflows failed:`);
+        for (const wf of failingWorkflows) {
+            (0, core_1.error)(` - ${wf}`);
+        }
     }
     return allSucceeded;
 }
@@ -40674,8 +40682,8 @@ async function prepareToolchain(toolchain, cachePrefix) {
             (await restoreFromCache(pathGuess.path, cacheKey)))
             return;
         core.info(`Installing toolchain ${toolchain}`);
-        // To support all components, install with 'complete' profile
-        await exec.exec('rustup', ['install', toolchain, '--profile', 'complete']);
+        // To support all components, install with 'default' profile
+        await exec.exec('rustup', ['install', toolchain, '--profile', 'default']);
         if (cacheKey && pathGuess)
             await saveToCache(pathGuess.path, cacheKey);
     });

@@ -1,4 +1,4 @@
-import { group, setFailed } from '@actions/core';
+import { error, group, setFailed } from '@actions/core';
 import parseArgsStringToArgv from 'string-argv';
 import { Input } from './input.js';
 import { check_sccache } from './sccache.js';
@@ -60,6 +60,8 @@ export async function run(cfg: Input): Promise<boolean> {
     runfilter.includes(wf.name),
   );
 
+  let failingWorkflows: string[] = [];
+
   let allSucceeded = true;
   for (const wf of enabledWorkflows) {
     await group(`${wf.name}`, async () => {
@@ -68,9 +70,18 @@ export async function run(cfg: Input): Promise<boolean> {
       } catch (e) {
         allSucceeded = false;
         setFailed(`Workflow ${wf.name} failed: ${e}`);
+        failingWorkflows.push(wf.name);
       }
     });
   }
+
+  if (!allSucceeded) {
+    error(`The following workflows failed:`);
+    for (const wf of failingWorkflows) {
+      error(` - ${wf}`);
+    }
+  }
+
   return allSucceeded;
 }
 
