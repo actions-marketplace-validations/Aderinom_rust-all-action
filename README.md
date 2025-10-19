@@ -38,7 +38,7 @@ jobs:
       RUSTC_WRAPPER: 'sccache'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v4
       # Prepare binstall for quick binary downloads in case no cache exists
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@v1.15.7
