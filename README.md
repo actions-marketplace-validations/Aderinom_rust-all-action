@@ -28,6 +28,27 @@ jobs:
       - uses: aderinom/rust-all-action@v1
 ```
 
+For best experience, sccache and binstall are recommended.
+
+```yaml
+jobs:
+  rust-all:
+    env:
+      SCCACHE_GHA_ENABLED: 'true'
+      RUSTC_WRAPPER: 'sccache'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 
+      # Prepare binstall for quick binary downloads in case no cache exists
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.15.7
+      # Start sccache for compilation caching
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      # Run the rust workflow
+      - uses: aderinom/rust-all-action@v1
+```
+
 If you prefer running seperate jobs, use following config:
 
 ```yaml
