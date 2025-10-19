@@ -94,7 +94,8 @@ export async function prepareToolchain(
       return;
 
     core.info(`Installing toolchain ${toolchain}`);
-    await exec.exec('rustup', ['install', toolchain]);
+    // To support all components, install with 'complete' profile
+    await exec.exec('rustup', ['install', toolchain, '--profile', 'complete']);
 
     if (cacheKey && pathGuess) await saveToCache(pathGuess.path, cacheKey);
   });

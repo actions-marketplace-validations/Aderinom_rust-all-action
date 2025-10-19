@@ -40667,14 +40667,15 @@ async function prepareToolchain(toolchain, cachePrefix) {
         }
         const pathGuess = await resolveToolchainPath(toolchain);
         const cacheKey = cachePrefix
-            ? `${cachePrefix}-${toolchain}-${pathGuess?.postfix}`
+            ? `${cachePrefix}-${toolchain}${pathGuess?.postfix}`
             : undefined;
         if (cacheKey &&
             pathGuess &&
             (await restoreFromCache(pathGuess.path, cacheKey)))
             return;
         core.info(`Installing toolchain ${toolchain}`);
-        await exec.exec('rustup', ['install', toolchain]);
+        // To support all components, install with 'complete' profile
+        await exec.exec('rustup', ['install', toolchain, '--profile', 'complete']);
         if (cacheKey && pathGuess)
             await saveToCache(pathGuess.path, cacheKey);
     });
