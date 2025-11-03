@@ -2,6 +2,10 @@ import { writeFileSync } from 'fs';
 const actionInfo = {
   title: 'Rust All Action',
   description: `Simple GitHub Action to cache (toolchains and tools) and run multiple Rust workflows.`,
+  branding: {
+    icon: 'check-circle',
+    color: 'orange',
+  },
 };
 
 const definition: Definition = {
@@ -266,6 +270,9 @@ function generateActionYml(definition: Definition): string {
       .trim()
       .split('\n')
       .map((line) => `  ${line}`),
+    `branding:`,
+    `  icon: ${actionInfo.branding.icon}`,
+    `  color: ${actionInfo.branding.color}`,
     `inputs:\n${inputs}`,
   ].join('\n');
 }

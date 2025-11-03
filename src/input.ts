@@ -3,266 +3,255 @@
 import * as core from '@actions/core';
 
 export interface Input {
-  //Path to the Rust project (default: ".")
-  project: string;
-  //Workflows to run (default: "all-default")
-  run: string[];
-  //Cache key for dependencies (default: "rax-cache")
-  cacheKey: string;
-  //Rust toolchain to use
-  toolchain?: string;
-  //If true, only install the toolchain and tools without running any workflows
-  installOnly?: boolean;
-  //Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version
-  installAdditional?: string[];
-  flow: {
-    test: {
-      //Toolchain for test workflow
-      toolchain?: string;
-      //Override arguments for test workflow
-      overrideArgs?: string;
-      //If true, tests stop on first failure (default: "false")
-      failFast: boolean;
-    };
-    clippy: {
-      //Toolchain for clippy workflow
-      toolchain?: string;
-      //Override arguments for clippy workflow
-      overrideArgs?: string;
-      //Deny warnings in clippy workflow (default: "true")
-      denyWarnings: boolean;
-    };
-    fmt: {
-      //Toolchain for fmt workflow
-      toolchain?: string;
-      //Override arguments for fmt workflow
-      overrideArgs?: string;
-    };
-    doc: {
-      //Toolchain for doc workflow
-      toolchain?: string;
-      //Override arguments for doc workflow
-      overrideArgs?: string;
-    };
-    shear: {
-      //Toolchain for shear workflow
-      toolchain?: string;
-      //Override arguments for shear workflow
-      overrideArgs?: string;
-    };
-    deny: {
-      //Toolchain for deny workflow
-      toolchain?: string;
-      //Override arguments for deny workflow
-      overrideArgs?: string;
-    };
-  };
-}
+//Path to the Rust project (default: ".")
+project: string;
+//Workflows to run (default: "all-default")
+run: string[];
+//Cache key for dependencies (default: "rax-cache")
+cacheKey: string;
+//Rust toolchain to use
+toolchain?: string;
+//If true, only install the toolchain and tools without running any workflows
+installOnly?: boolean;
+//Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version
+installAdditional?: string[];
+flow: {
+test: {
+//Toolchain for test workflow
+toolchain?: string;
+//Override arguments for test workflow
+overrideArgs?: string;
+//If true, tests stop on first failure (default: "false")
+failFast: boolean;
+};
+clippy: {
+//Toolchain for clippy workflow
+toolchain?: string;
+//Override arguments for clippy workflow
+overrideArgs?: string;
+//Deny warnings in clippy workflow (default: "true")
+denyWarnings: boolean;
+};
+fmt: {
+//Toolchain for fmt workflow
+toolchain?: string;
+//Override arguments for fmt workflow
+overrideArgs?: string;
+};
+doc: {
+//Toolchain for doc workflow
+toolchain?: string;
+//Override arguments for doc workflow
+overrideArgs?: string;
+};
+shear: {
+//Toolchain for shear workflow
+toolchain?: string;
+//Override arguments for shear workflow
+overrideArgs?: string;
+};
+deny: {
+//Toolchain for deny workflow
+toolchain?: string;
+//Override arguments for deny workflow
+overrideArgs?: string;
+};
+};
+};
 
 export function loadInput(): Input {
   const cfg: any = {};
   {
-    let strvalue = core.getInput('project');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value === undefined) {
-      value = '.';
-    }
-    if (value !== undefined) {
-      cfg['project'] = value as any;
-    } else {
-      cfg['project'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('run');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value === undefined) {
-      value = 'all-default';
-    }
-    if (value !== undefined) {
-      cfg['run'] = value.split(',') as any;
-    } else {
-      cfg['run'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('cacheKey');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value === undefined) {
-      value = 'rax-cache';
-    }
-    if (value !== undefined) {
-      cfg['cacheKey'] = value as any;
-    } else {
-      cfg['cacheKey'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['toolchain'] = value as any;
-    } else {
-      cfg['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('installOnly');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['installOnly'] = value.toLowerCase() === ('true' as any);
-    } else {
-      cfg['installOnly'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('installAdditional');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['installAdditional'] = value.split(',') as any;
-    } else {
-      cfg['installAdditional'] = undefined;
-    }
-  }
-  cfg['flow'] = {};
-  cfg['flow']['test'] = {};
-  {
-    let strvalue = core.getInput('flow-test-toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['test']['toolchain'] = value as any;
-    } else {
-      cfg['flow']['test']['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-test-overrideArgs');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['test']['overrideArgs'] = value as any;
-    } else {
-      cfg['flow']['test']['overrideArgs'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-test-failFast');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value === undefined) {
-      value = 'false';
-    }
-    if (value !== undefined) {
-      cfg['flow']['test']['failFast'] = value.toLowerCase() === ('true' as any);
-    } else {
-      cfg['flow']['test']['failFast'] = undefined;
-    }
-  }
-  cfg['flow']['clippy'] = {};
-  {
-    let strvalue = core.getInput('flow-clippy-toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['clippy']['toolchain'] = value as any;
-    } else {
-      cfg['flow']['clippy']['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-clippy-overrideArgs');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['clippy']['overrideArgs'] = value as any;
-    } else {
-      cfg['flow']['clippy']['overrideArgs'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-clippy-denyWarnings');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value === undefined) {
-      value = 'true';
-    }
-    if (value !== undefined) {
-      cfg['flow']['clippy']['denyWarnings'] =
-        value.toLowerCase() === ('true' as any);
-    } else {
-      cfg['flow']['clippy']['denyWarnings'] = undefined;
-    }
-  }
-  cfg['flow']['fmt'] = {};
-  {
-    let strvalue = core.getInput('flow-fmt-toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['fmt']['toolchain'] = value as any;
-    } else {
-      cfg['flow']['fmt']['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-fmt-overrideArgs');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['fmt']['overrideArgs'] = value as any;
-    } else {
-      cfg['flow']['fmt']['overrideArgs'] = undefined;
-    }
-  }
-  cfg['flow']['doc'] = {};
-  {
-    let strvalue = core.getInput('flow-doc-toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['doc']['toolchain'] = value as any;
-    } else {
-      cfg['flow']['doc']['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-doc-overrideArgs');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['doc']['overrideArgs'] = value as any;
-    } else {
-      cfg['flow']['doc']['overrideArgs'] = undefined;
-    }
-  }
-  cfg['flow']['shear'] = {};
-  {
-    let strvalue = core.getInput('flow-shear-toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['shear']['toolchain'] = value as any;
-    } else {
-      cfg['flow']['shear']['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-shear-overrideArgs');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['shear']['overrideArgs'] = value as any;
-    } else {
-      cfg['flow']['shear']['overrideArgs'] = undefined;
-    }
-  }
-  cfg['flow']['deny'] = {};
-  {
-    let strvalue = core.getInput('flow-deny-toolchain');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['deny']['toolchain'] = value as any;
-    } else {
-      cfg['flow']['deny']['toolchain'] = undefined;
-    }
-  }
-  {
-    let strvalue = core.getInput('flow-deny-overrideArgs');
-    let value = strvalue.length > 0 ? strvalue : undefined;
-    if (value !== undefined) {
-      cfg['flow']['deny']['overrideArgs'] = value as any;
-    } else {
-      cfg['flow']['deny']['overrideArgs'] = undefined;
-    }
-  }
+let strvalue = core.getInput('project');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value === undefined) { value = "."; }
+if (value !== undefined) {
+cfg['project'] = value as any;
+} else {
+cfg['project'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('run');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value === undefined) { value = "all-default"; }
+if (value !== undefined) {
+cfg['run'] = value.split(',') as any;
+} else {
+cfg['run'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('cacheKey');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value === undefined) { value = "rax-cache"; }
+if (value !== undefined) {
+cfg['cacheKey'] = value as any;
+} else {
+cfg['cacheKey'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['toolchain'] = value as any;
+} else {
+cfg['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('installOnly');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['installOnly'] = value.toLowerCase() === 'true' as any;
+} else {
+cfg['installOnly'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('installAdditional');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['installAdditional'] = value.split(',') as any;
+} else {
+cfg['installAdditional'] = undefined;
+}
+}
+cfg['flow'] = {};
+cfg['flow']['test'] = {};
+{
+let strvalue = core.getInput('flow-test-toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['test']['toolchain'] = value as any;
+} else {
+cfg['flow']['test']['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-test-overrideArgs');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['test']['overrideArgs'] = value as any;
+} else {
+cfg['flow']['test']['overrideArgs'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-test-failFast');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value === undefined) { value = "false"; }
+if (value !== undefined) {
+cfg['flow']['test']['failFast'] = value.toLowerCase() === 'true' as any;
+} else {
+cfg['flow']['test']['failFast'] = undefined;
+}
+}
+cfg['flow']['clippy'] = {};
+{
+let strvalue = core.getInput('flow-clippy-toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['clippy']['toolchain'] = value as any;
+} else {
+cfg['flow']['clippy']['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-clippy-overrideArgs');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['clippy']['overrideArgs'] = value as any;
+} else {
+cfg['flow']['clippy']['overrideArgs'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-clippy-denyWarnings');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value === undefined) { value = "true"; }
+if (value !== undefined) {
+cfg['flow']['clippy']['denyWarnings'] = value.toLowerCase() === 'true' as any;
+} else {
+cfg['flow']['clippy']['denyWarnings'] = undefined;
+}
+}
+cfg['flow']['fmt'] = {};
+{
+let strvalue = core.getInput('flow-fmt-toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['fmt']['toolchain'] = value as any;
+} else {
+cfg['flow']['fmt']['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-fmt-overrideArgs');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['fmt']['overrideArgs'] = value as any;
+} else {
+cfg['flow']['fmt']['overrideArgs'] = undefined;
+}
+}
+cfg['flow']['doc'] = {};
+{
+let strvalue = core.getInput('flow-doc-toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['doc']['toolchain'] = value as any;
+} else {
+cfg['flow']['doc']['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-doc-overrideArgs');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['doc']['overrideArgs'] = value as any;
+} else {
+cfg['flow']['doc']['overrideArgs'] = undefined;
+}
+}
+cfg['flow']['shear'] = {};
+{
+let strvalue = core.getInput('flow-shear-toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['shear']['toolchain'] = value as any;
+} else {
+cfg['flow']['shear']['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-shear-overrideArgs');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['shear']['overrideArgs'] = value as any;
+} else {
+cfg['flow']['shear']['overrideArgs'] = undefined;
+}
+}
+cfg['flow']['deny'] = {};
+{
+let strvalue = core.getInput('flow-deny-toolchain');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['deny']['toolchain'] = value as any;
+} else {
+cfg['flow']['deny']['toolchain'] = undefined;
+}
+}
+{
+let strvalue = core.getInput('flow-deny-overrideArgs');
+let value = strvalue.length > 0 ? strvalue : undefined;
+if (value !== undefined) {
+cfg['flow']['deny']['overrideArgs'] = value as any;
+} else {
+cfg['flow']['deny']['overrideArgs'] = undefined;
+}
+}
   return cfg as Input;
 }
