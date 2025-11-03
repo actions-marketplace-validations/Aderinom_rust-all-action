@@ -40145,6 +40145,68 @@ module.exports = {
 
 /***/ }),
 
+/***/ 26619:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.restoreFromCache = restoreFromCache;
+exports.saveToCache = saveToCache;
+exports.generateCacheKey = generateCacheKey;
+const tslib_1 = __nccwpck_require__(31577);
+const cache = tslib_1.__importStar(__nccwpck_require__(95291));
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+const fs_1 = __nccwpck_require__(79896);
+async function restoreFromCache(cachePath, key, restoreKeys = []) {
+    const restored = await cache.restoreCache(cachePath, key, restoreKeys);
+    if (restored) {
+        core.info(`Using cached ${key} from restored through key: ${restored}`);
+        return true;
+    }
+    return false;
+}
+async function saveToCache(cachePath, key) {
+    let anyExists = false;
+    for (const path of cachePath) {
+        if (!(0, fs_1.existsSync)(path)) {
+            core.info(`Cache path ${path} is missing`);
+        }
+        else {
+            anyExists = true;
+        }
+    }
+    if (!anyExists) {
+        core.warning(`No paths from ${cachePath} exist, skip caching for key ${key}`);
+        return;
+    }
+    try {
+        await cache.saveCache(cachePath, key);
+        core.info(`Cached key ${key}`);
+    }
+    catch (err) {
+        if (err.name === cache.ValidationError.name)
+            throw err;
+        if (err.name === cache.ReserveCacheError.name)
+            core.warning(`Caching failed for ${key}: ${err.message}`);
+    }
+}
+/**
+ * Generates a cache key
+ *
+ * Format: {prefix}-{platform-arch?}-{version?}-{postFixes...}
+ *
+ */
+function generateCacheKey(prefix, version, usePlatform = true, postFixes = []) {
+    const platform = usePlatform ? `-${process.platform}-${process.arch}` : '';
+    const ver = version ? `-${version}` : '';
+    const postfix = postFixes.length > 0 ? `-${postFixes.join('-')}` : '';
+    return `${prefix}${platform}${ver}${postfix}`;
+}
+
+
+/***/ }),
+
 /***/ 21253:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -40153,12 +40215,12 @@ module.exports = {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Cargo = void 0;
 const tslib_1 = __nccwpck_require__(31577);
-const cache = tslib_1.__importStar(__nccwpck_require__(95291));
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
 const exec = tslib_1.__importStar(__nccwpck_require__(58872));
 const http = tslib_1.__importStar(__nccwpck_require__(80787));
 const io = tslib_1.__importStar(__nccwpck_require__(73357));
 const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
+const cache_1 = __nccwpck_require__(26619);
 class Cargo {
     /**
      * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
@@ -40195,28 +40257,6 @@ class Cargo {
                 throw new Error('Unable to fetch latest crate version');
             return resp.result.crate.newest_version;
         }
-        // Helper to restore from cache
-        async function restoreFromCache(key) {
-            const restored = await cache.restoreCache(cachePath, key, restoreKeys);
-            if (restored) {
-                core.info(`Using cached ${program}@${version} from key ${restored}`);
-                return true;
-            }
-            return false;
-        }
-        // Helper to save to cache
-        async function saveToCache(key) {
-            try {
-                await cache.saveCache(cachePath, key);
-                core.info(`Cached ${program}@${version} with key ${key}`);
-            }
-            catch (err) {
-                if (err.name === cache.ValidationError.name)
-                    throw err;
-                if (err.name === cache.ReserveCacheError.name)
-                    core.warning(`Caching failed: ${err.message}`);
-            }
-        }
         // Check if already installed
         if (await isInstalled()) {
             core.debug(`${program} already installed`);
@@ -40225,9 +40265,9 @@ class Cargo {
         // Restore from cache
         const resolvedVersion = await resolveVersion(program);
         const cacheKey = cachePrefix && cachePrefix !== 'no-cache'
-            ? `${cachePrefix}-${program}-${resolvedVersion}`
+            ? (0, cache_1.generateCacheKey)(`${cachePrefix}-${program}`, resolvedVersion, true)
             : undefined;
-        if (cacheKey && (await restoreFromCache(cacheKey)))
+        if (cacheKey && (await (0, cache_1.restoreFromCache)(cachePath, cacheKey)))
             return;
         // If binstall requested, ensure it's installed
         if (useBinstall) {
@@ -40244,7 +40284,7 @@ class Cargo {
         });
         // Save to cache
         if (cacheKey)
-            await saveToCache(cacheKey);
+            await (0, cache_1.saveToCache)(cachePath, cacheKey);
         return;
     }
     // Executes a cargo command with given arguments
@@ -40616,6 +40656,7 @@ const fs_1 = __nccwpck_require__(79896);
 const promises_1 = __nccwpck_require__(91943);
 const os_1 = tslib_1.__importDefault(__nccwpck_require__(70857));
 const path = tslib_1.__importStar(__nccwpck_require__(16928));
+const cache_1 = __nccwpck_require__(26619);
 // Lists installed Rust toolchains
 async function listToolchains() {
     const dir = path.join(os_1.default.homedir(), '.rustup', 'toolchains');
@@ -40638,15 +40679,6 @@ async function resolveToolchainPath(toolchain) {
         path: foundPath,
         postfix,
     };
-}
-// Prepares a Rust toolchain by installing it and caching if needed
-async function restoreFromCache(toolchainPath, key) {
-    const restored = await cache.restoreCache([toolchainPath], key);
-    if (restored) {
-        core.info(`Restored ${toolchainPath} from cache key ${restored}`);
-        return true;
-    }
-    return false;
 }
 // Saves a Rust toolchain installation to cache
 async function saveToCache(toolchainPath, key) {
@@ -40673,14 +40705,23 @@ async function prepareToolchain(toolchain, cachePrefix) {
             core.debug(`Toolchain ${toolchain} already installed`);
             return;
         }
+        // We need to get the postfix from an existing toolchain to form the cache key
         const pathGuess = await resolveToolchainPath(toolchain);
-        const cacheKey = cachePrefix
-            ? `${cachePrefix}-${toolchain}${pathGuess?.postfix}`
-            : undefined;
-        if (cacheKey &&
-            pathGuess &&
-            (await restoreFromCache(pathGuess.path, cacheKey)))
-            return;
+        let cacheKey = undefined;
+        if (cachePrefix && cachePrefix !== 'no-cache') {
+            if (!pathGuess) {
+                core.info(`Cannot determine path for toolchain ${toolchain}, skipping cache`);
+            }
+            else {
+                cacheKey = cachePrefix
+                    ? (0, cache_1.generateCacheKey)(`${cachePrefix}-${toolchain}-${pathGuess.postfix}`)
+                    : undefined;
+                if (cacheKey && (await (0, cache_1.restoreFromCache)([pathGuess.path], cacheKey))) {
+                    core.info(`Restored toolchain ${toolchain} from cache`);
+                    return;
+                }
+            }
+        }
         core.info(`Installing toolchain ${toolchain}`);
         // To support all components, install with 'default' profile
         await exec.exec('rustup', ['install', toolchain, '--profile', 'default']);
