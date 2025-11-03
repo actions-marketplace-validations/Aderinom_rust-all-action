@@ -7,6 +7,7 @@ Designed as a baseline CI for Rust projects.
 
 By default:
 
+- Uses binstall to download prebuild binaries
 - Caches installed tools between runs
 - Caches installed toolchains
 - Supports workflow-specific toolchain and argument overrides
@@ -28,7 +29,7 @@ jobs:
       - uses: aderinom/rust-all-action@v1
 ```
 
-For best experience, sccache and binstall are recommended.
+For best experience, sccache is recommended.
 
 ```yaml
 jobs:
@@ -39,9 +40,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Prepare binstall for quick binary downloads in case no cache exists
-      - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.15.7
       # Start sccache for compilation caching
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
