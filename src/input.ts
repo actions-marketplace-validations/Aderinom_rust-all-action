@@ -13,6 +13,8 @@ export interface Input {
   cacheKey: string;
   //Rust toolchain to use
   toolchain?: string;
+  //Additional toolchain components to install e.g. rust-src
+  extraComponents?: string[];
   //If true, only install the toolchain and tools without running any workflows
   installOnly?: boolean;
   //Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version
@@ -115,6 +117,15 @@ export function loadInput(): Input {
       cfg['toolchain'] = value as any;
     } else {
       cfg['toolchain'] = undefined;
+    }
+  }
+  {
+    let strvalue = core.getInput('extraComponents');
+    let value = strvalue.length > 0 ? strvalue : undefined;
+    if (value !== undefined) {
+      cfg['extraComponents'] = value.split(',') as any;
+    } else {
+      cfg['extraComponents'] = undefined;
     }
   }
   {

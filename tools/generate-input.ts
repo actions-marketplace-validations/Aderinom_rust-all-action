@@ -32,6 +32,10 @@ const definition: Definition = {
     type: 'string',
     description: 'Rust toolchain to use',
   },
+  extraComponents: {
+    type: 'string[]',
+    description: 'Additional toolchain components to install e.g. rust-src',
+  },
   installOnly: {
     type: 'boolean',
     description:

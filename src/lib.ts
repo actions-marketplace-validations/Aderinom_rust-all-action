@@ -62,7 +62,7 @@ export async function run(cfg: Input): Promise<RunResult> {
   const installedToolchains: string[] = [];
   // Prepare all required toolchains
   for (const tc of toolchains) {
-    await prepareToolchain(tc, cacheKey);
+    await prepareToolchain(tc, cfg.extraComponents, cacheKey);
     installedToolchains.push(tc);
   }
 

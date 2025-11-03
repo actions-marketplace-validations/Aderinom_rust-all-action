@@ -7,52 +7,54 @@ branding:
   color: orange
 inputs:
   project:
-    description: "Path to the Rust project"
-    default: "."
+    description: 'Path to the Rust project'
+    default: '.'
   profile:
-    description: "Cargo build profile to use"
+    description: 'Cargo build profile to use'
   run:
-    description: "Workflows to run"
-    default: "all-default"
+    description: 'Workflows to run'
+    default: 'all-default'
   cacheKey:
-    description: "Cache key for dependencies"
-    default: "rax-cache"
+    description: 'Cache key for dependencies'
+    default: 'rax-cache'
   toolchain:
-    description: "Rust toolchain to use"
+    description: 'Rust toolchain to use'
+  extraComponents:
+    description: 'Additional toolchain components to install e.g. rust-src'
   installOnly:
-    description: "If true, only install the toolchain and tools without running any workflows"
+    description: 'If true, only install the toolchain and tools without running any workflows'
   installAdditional:
-    description: "Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version"
+    description: 'Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version'
   flow-test-toolchain:
-    description: "Toolchain for test workflow"
+    description: 'Toolchain for test workflow'
   flow-test-overrideArgs:
-    description: "Override arguments for test workflow"
+    description: 'Override arguments for test workflow'
   flow-test-failFast:
-    description: "If true, tests stop on first failure"
-    default: "false"
+    description: 'If true, tests stop on first failure'
+    default: 'false'
   flow-clippy-toolchain:
-    description: "Toolchain for clippy workflow"
+    description: 'Toolchain for clippy workflow'
   flow-clippy-overrideArgs:
-    description: "Override arguments for clippy workflow"
+    description: 'Override arguments for clippy workflow'
   flow-clippy-denyWarnings:
-    description: "Deny warnings in clippy workflow"
-    default: "true"
+    description: 'Deny warnings in clippy workflow'
+    default: 'true'
   flow-fmt-toolchain:
-    description: "Toolchain for fmt workflow"
+    description: 'Toolchain for fmt workflow'
   flow-fmt-overrideArgs:
-    description: "Override arguments for fmt workflow"
+    description: 'Override arguments for fmt workflow'
   flow-doc-toolchain:
-    description: "Toolchain for doc workflow"
+    description: 'Toolchain for doc workflow'
   flow-doc-overrideArgs:
-    description: "Override arguments for doc workflow"
+    description: 'Override arguments for doc workflow'
   flow-shear-toolchain:
-    description: "Toolchain for shear workflow"
+    description: 'Toolchain for shear workflow'
   flow-shear-overrideArgs:
-    description: "Override arguments for shear workflow"
+    description: 'Override arguments for shear workflow'
   flow-deny-toolchain:
-    description: "Toolchain for deny workflow"
+    description: 'Toolchain for deny workflow'
   flow-deny-overrideArgs:
-    description: "Override arguments for deny workflow"
+    description: 'Override arguments for deny workflow'
 runs:
   using: node20
   main: dist/index.js
