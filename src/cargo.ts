@@ -2,8 +2,11 @@ import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as http from '@actions/http-client';
 import * as io from '@actions/io';
+import { warn } from 'console';
+import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import { cwd } from 'process';
+import * as toml from 'toml';
 import { ensureBinstall } from './binstall';
 import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
 
@@ -11,8 +14,8 @@ export class Cargo {
   /**
    * @returns Path to cargo target directory
    */
-  public static targetDir(): string {
-    return process.env.CARGO_TARGET_DIR || path.join(cwd(), 'target');
+  public static targetDir(projectDir: string): string {
+    return process.env.CARGO_TARGET_DIR || path.join(projectDir, 'target');
   }
 
   /**
@@ -31,6 +34,33 @@ export class Cargo {
     return (
       process.env.RUSTUP_HOME || path.join(process.env.HOME || '', '.rustup')
     );
+  }
+
+  public static async rustToolchainTomlChannel(
+    dir: string = cwd(),
+  ): Promise<string | undefined> {
+    if (!existsSync(path.join(dir, 'rust-toolchain.toml'))) {
+      core.debug('No rust-toolchain.toml found');
+      return;
+    }
+
+    let tomlContent: any;
+    try {
+      const toolchainToml = path.join(dir, 'rust-toolchain.toml');
+      const content = await readFileSync(toolchainToml, 'utf8');
+      tomlContent = toml.parse(content);
+    } catch (error) {
+      warn('Failed to parse rust-toolchain.toml.');
+      return;
+    }
+
+    let channel = tomlContent?.toolchain?.channel;
+    if (typeof channel !== 'string') {
+      return;
+    }
+
+    // Remove any suffixes like "-2024-01-01" from the channel
+    return channel;
   }
 
   /**

@@ -1,4 +1,5 @@
 import { error, group, info, setFailed } from '@actions/core';
+import { warn } from 'node:console';
 import path from 'node:path';
 import parseArgsStringToArgv from 'string-argv';
 import { Cargo } from './cargo.js';
@@ -28,6 +29,22 @@ const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 //
 // Returns true if all workflows succeeded, false otherwise
 export async function run(cfg: Input): Promise<RunResult> {
+  info(`cwd: ${process.cwd()}`);
+  info(`project path: ${cfg.project}`);
+
+  const tomlChannel = await Cargo.rustToolchainTomlChannel(cfg.project);
+
+  if (tomlChannel) {
+    info(`Detected rust-toolchain.toml channel: ${tomlChannel}`);
+    if (cfg.toolchain) {
+      warn(
+        `Global toolchain is set to '${cfg.toolchain}', but rust-toolchain.toml specifies '${tomlChannel}'. Overriding global toolchain.`,
+      );
+    }
+
+    cfg.toolchain = tomlChannel;
+  }
+
   await check_sccache();
   const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
 
@@ -163,19 +180,14 @@ export function workflowConfig<T extends keyof Input['flow']>(
       ? parseArgsStringToArgv(flowConfig.overrideArgs)
       : undefined;
 
-  // Base config common to all workflows, defined by the top level cfg
-  const baseConfig = {
+  const finalConfig = {
+    ...flowConfig,
     project: cfg.project,
-    toolchain: cfg.toolchain,
+    toolchain: flowConfig.toolchain ?? cfg.toolchain, // Flow-specific toolchain overrides global
     buildProfile: cfg.profile,
     cacheKey,
+    overrideArgs,
   };
-
-  const finalConfig = {
-    ...baseConfig,
-    ...flowConfig,
-  };
-  finalConfig.overrideArgs = overrideArgs;
 
   return finalConfig;
 }

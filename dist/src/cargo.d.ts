@@ -3,7 +3,7 @@ export declare class Cargo {
     /**
      * @returns Path to cargo target directory
      */
-    static targetDir(): string;
+    static targetDir(projectDir: string): string;
     /**
      * @returns Path to cargo binary directory
      */
@@ -12,6 +12,7 @@ export declare class Cargo {
      * @returns Path to rustup home directory
      */
     static rustupHome(): string;
+    static rustToolchainTomlChannel(dir?: string): Promise<string | undefined>;
     /**
      * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
      * Optionally restores/saves to cache.
