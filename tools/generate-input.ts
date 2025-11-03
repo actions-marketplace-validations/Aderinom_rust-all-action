@@ -14,6 +14,10 @@ const definition: Definition = {
     description: 'Path to the Rust project',
     default: '.',
   },
+  profile: {
+    type: 'string',
+    description: 'Cargo build profile to use',
+  },
   run: {
     type: 'string[]',
     description: 'Workflows to run',

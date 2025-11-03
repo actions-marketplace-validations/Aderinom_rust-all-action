@@ -9,6 +9,7 @@ export declare function run(cfg: Input): Promise<RunResult>;
 export type FlowConfig<T extends keyof Input['flow']> = Omit<Input['flow'][T], 'overrideArgs'> & {
     project: string;
     cacheKey: string;
+    buildProfile?: string;
     toolchain?: string;
     overrideArgs?: string[];
 };

@@ -14,6 +14,7 @@ describe('Workflows', () => {
       run: ['test', 'clippy'],
       cacheKey: 'no-cache',
       toolchain: 'stable',
+      profile: 'ci',
       flow: {
         clippy: {
           toolchain: 'nightly',
@@ -26,6 +27,7 @@ describe('Workflows', () => {
     const config1 = workflowConfig(options, 'test');
     assert.deepStrictEqual(config1, {
       project: project_dir,
+      buildProfile: 'ci',
       toolchain: 'stable',
       cacheKey: undefined,
       overrideArgs: undefined,
@@ -34,6 +36,7 @@ describe('Workflows', () => {
     const config2 = workflowConfig(options, 'clippy');
     assert.deepEqual(config2, {
       project: project_dir,
+      buildProfile: 'ci',
       toolchain: 'nightly',
       cacheKey: undefined,
       overrideArgs: undefined,
@@ -43,12 +46,13 @@ describe('Workflows', () => {
 
   const config = loadInput();
   for (const wf of Object.keys(config.flow)) {
-    test(`should succeed for ${wf}`, async () => {
+    test(`should succeed for ${wf}`, { timeout: 30_000 }, async () => {
       const options = structuredClone(config);
       options.project = project_dir;
       options.run = [wf];
       options.cacheKey = 'no-cache';
       options.flow.clippy.toolchain = 'nightly';
+      options.profile = 'ci';
 
       const result = await run(options);
       assert.equal(result.succeeded, true);

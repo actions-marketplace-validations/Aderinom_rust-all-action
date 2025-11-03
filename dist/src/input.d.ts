@@ -1,5 +1,6 @@
 export interface Input {
     project: string;
+    profile?: string;
     run: string[];
     cacheKey: string;
     toolchain?: string;

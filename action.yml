@@ -9,6 +9,8 @@ inputs:
   project:
     description: "Path to the Rust project"
     default: "."
+  profile:
+    description: "Cargo build profile to use"
   run:
     description: "Workflows to run"
     default: "all-default"

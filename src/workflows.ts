@@ -23,7 +23,7 @@ export class TestWorkflow implements Workflow {
       args.push('--no-fail-fast');
     }
 
-    const cmd = cargoCommand('test', this.config, args);
+    const cmd = cargoCommand('test', this.config, args, true);
     info(
       `Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`,
     );
@@ -38,12 +38,12 @@ export class ClippyWorkflow implements Workflow {
   constructor(readonly config: FlowConfig<'clippy'>) {}
 
   async run(): Promise<void> {
-    const cmd = cargoCommand('clippy', this.config, [
-      '--all',
-      '--locked',
-      '--all-targets',
-      '--all-features',
-    ]);
+    const cmd = cargoCommand(
+      'clippy',
+      this.config,
+      ['--all', '--locked', '--all-targets', '--all-features'],
+      true,
+    );
     info(
       `Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`,
     );
@@ -58,7 +58,12 @@ export class FormatWorkflow implements Workflow {
   constructor(readonly config: FlowConfig<'fmt'>) {}
 
   async run(): Promise<void> {
-    const cmd = cargoCommand('fmt', this.config, ['--all', '--', '--check']);
+    const cmd = cargoCommand(
+      'fmt',
+      this.config,
+      ['--all', '--', '--check'],
+      false,
+    );
     info(
       `Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`,
     );
@@ -73,11 +78,12 @@ export class DocsWorkflow implements Workflow {
   constructor(readonly config: FlowConfig<'doc'>) {}
 
   async run(): Promise<void> {
-    const cmd = cargoCommand('doc', this.config, [
-      '--all',
-      '--locked',
-      '--no-deps',
-    ]);
+    const cmd = cargoCommand(
+      'doc',
+      this.config,
+      ['--all', '--locked', '--no-deps'],
+      true,
+    );
     info(
       `Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`,
     );
@@ -92,7 +98,7 @@ export class ShearWorkflow implements Workflow {
   constructor(readonly config: FlowConfig<'shear'>) {}
 
   async run(): Promise<void> {
-    const cmd = cargoCommand('shear', this.config, []);
+    const cmd = cargoCommand('shear', this.config, [], false);
     info(
       `Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`,
     );
@@ -107,7 +113,7 @@ export class DenyWorkflow implements Workflow {
   constructor(readonly config: FlowConfig<'deny'>) {}
 
   async run(): Promise<void> {
-    const cmd = cargoCommand('deny', this.config, ['check']);
+    const cmd = cargoCommand('deny', this.config, ['check'], false);
     info(
       `Executing command: 'cargo ${cmd.join(' ')}', in directory: ${this.config.project}`,
     );
@@ -120,15 +126,17 @@ export class DenyWorkflow implements Workflow {
 // Helper to build cargo command with toolchain and flags
 function cargoCommand(
   command: string,
-  config: {
-    toolchain?: string;
-    overrideArgs?: string[];
-  },
+  config: FlowConfig<any>,
   args: string[],
+  addProfile: boolean,
 ): string[] {
   const cargoCommand = [] as string[];
   if (config.toolchain) {
     cargoCommand.push(`+${config.toolchain}`);
+  }
+
+  if (addProfile && config.buildProfile) {
+    args.unshift(`--profile=${config.buildProfile}`);
   }
 
   cargoCommand.push(command);

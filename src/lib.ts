@@ -140,6 +140,7 @@ export type FlowConfig<T extends keyof Input['flow']> = Omit<
 > & {
   project: string;
   cacheKey: string;
+  buildProfile?: string;
   toolchain?: string;
   overrideArgs?: string[];
 };
@@ -166,6 +167,7 @@ export function workflowConfig<T extends keyof Input['flow']>(
   const baseConfig = {
     project: cfg.project,
     toolchain: cfg.toolchain,
+    buildProfile: cfg.profile,
     cacheKey,
   };
 

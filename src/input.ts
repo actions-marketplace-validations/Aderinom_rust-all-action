@@ -5,6 +5,8 @@ import * as core from '@actions/core';
 export interface Input {
   //Path to the Rust project (default: ".")
   project: string;
+  //Cargo build profile to use
+  profile?: string;
   //Workflows to run (default: "all-default")
   run: string[];
   //Cache key for dependencies (default: "rax-cache")
@@ -71,6 +73,15 @@ export function loadInput(): Input {
       cfg['project'] = value as any;
     } else {
       cfg['project'] = undefined;
+    }
+  }
+  {
+    let strvalue = core.getInput('profile');
+    let value = strvalue.length > 0 ? strvalue : undefined;
+    if (value !== undefined) {
+      cfg['profile'] = value as any;
+    } else {
+      cfg['profile'] = undefined;
     }
   }
   {

@@ -40409,6 +40409,16 @@ function loadInput() {
         }
     }
     {
+        let strvalue = core.getInput('profile');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['profile'] = value;
+        }
+        else {
+            cfg['profile'] = undefined;
+        }
+    }
+    {
         let strvalue = core.getInput('run');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
@@ -40756,6 +40766,7 @@ function workflowConfig(cfg, flow) {
     const baseConfig = {
         project: cfg.project,
         toolchain: cfg.toolchain,
+        buildProfile: cfg.profile,
         cacheKey,
     };
     const finalConfig = {
@@ -40917,7 +40928,7 @@ class TestWorkflow {
         if (!this.config.failFast) {
             args.push('--no-fail-fast');
         }
-        const cmd = cargoCommand('test', this.config, args);
+        const cmd = cargoCommand('test', this.config, args, true);
         (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
@@ -40931,12 +40942,7 @@ class ClippyWorkflow {
         this.config = config;
     }
     async run() {
-        const cmd = cargoCommand('clippy', this.config, [
-            '--all',
-            '--locked',
-            '--all-targets',
-            '--all-features',
-        ]);
+        const cmd = cargoCommand('clippy', this.config, ['--all', '--locked', '--all-targets', '--all-features'], true);
         (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
@@ -40950,7 +40956,7 @@ class FormatWorkflow {
         this.config = config;
     }
     async run() {
-        const cmd = cargoCommand('fmt', this.config, ['--all', '--', '--check']);
+        const cmd = cargoCommand('fmt', this.config, ['--all', '--', '--check'], false);
         (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
@@ -40964,11 +40970,7 @@ class DocsWorkflow {
         this.config = config;
     }
     async run() {
-        const cmd = cargoCommand('doc', this.config, [
-            '--all',
-            '--locked',
-            '--no-deps',
-        ]);
+        const cmd = cargoCommand('doc', this.config, ['--all', '--locked', '--no-deps'], true);
         (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
@@ -40982,7 +40984,7 @@ class ShearWorkflow {
         this.config = config;
     }
     async run() {
-        const cmd = cargoCommand('shear', this.config, []);
+        const cmd = cargoCommand('shear', this.config, [], false);
         (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
     }
@@ -40996,7 +40998,7 @@ class DenyWorkflow {
         this.config = config;
     }
     async run() {
-        const cmd = cargoCommand('deny', this.config, ['check']);
+        const cmd = cargoCommand('deny', this.config, ['check'], false);
         (0, node_console_1.info)(`Executing command: 'cargo ${cmd.join(' ')}', in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, {
             cwd: this.config.project,
@@ -41005,10 +41007,13 @@ class DenyWorkflow {
 }
 exports.DenyWorkflow = DenyWorkflow;
 // Helper to build cargo command with toolchain and flags
-function cargoCommand(command, config, args) {
+function cargoCommand(command, config, args, addProfile) {
     const cargoCommand = [];
     if (config.toolchain) {
         cargoCommand.push(`+${config.toolchain}`);
+    }
+    if (addProfile && config.buildProfile) {
+        args.unshift(`--profile=${config.buildProfile}`);
     }
     cargoCommand.push(command);
     if (config.overrideArgs) {
