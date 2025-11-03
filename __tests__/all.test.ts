@@ -90,3 +90,18 @@ describe(`Additional Tools Installation`, () => {
     assert.equal(result.succeeded, true);
   });
 });
+
+describe(`Additional Component Installation`, () => {
+  test(`should install additional components`, async () => {
+    const options = loadInput();
+    options.project = project_dir;
+    options.run = [];
+    options.cacheKey = 'no-cache';
+    options.installOnly = true;
+    options.extraComponents = ['rust-src', 'rustfmt'];
+
+    const result = await run(options);
+
+    console.log(result);
+  });
+});

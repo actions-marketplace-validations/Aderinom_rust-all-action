@@ -44547,6 +44547,16 @@ function loadInput() {
         }
     }
     {
+        let strvalue = core.getInput('extraComponents');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['extraComponents'] = value.split(',');
+        }
+        else {
+            cfg['extraComponents'] = undefined;
+        }
+    }
+    {
         let strvalue = core.getInput('installOnly');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value !== undefined) {
@@ -44775,7 +44785,7 @@ async function run(cfg) {
     const installedToolchains = [];
     // Prepare all required toolchains
     for (const tc of toolchains) {
-        await (0, toolchains_js_1.prepareToolchain)(tc, cacheKey);
+        await (0, toolchains_js_1.prepareToolchain)(tc, cfg.extraComponents, cacheKey);
         installedToolchains.push(tc);
     }
     const allWorkflows = [
@@ -44919,11 +44929,16 @@ async function check_sccache() {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.listInstalledComponents = listInstalledComponents;
+exports.isComponentInstalled = isComponentInstalled;
+exports.installComponent = installComponent;
+exports.getHostTriple = getHostTriple;
 exports.prepareToolchain = prepareToolchain;
 const tslib_1 = __nccwpck_require__(31577);
 const cache = tslib_1.__importStar(__nccwpck_require__(95291));
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
 const exec = tslib_1.__importStar(__nccwpck_require__(58872));
+const child_process_1 = __nccwpck_require__(35317);
 const fs_1 = __nccwpck_require__(79896);
 const promises_1 = __nccwpck_require__(91943);
 const path = tslib_1.__importStar(__nccwpck_require__(16928));
@@ -44939,18 +44954,37 @@ async function listToolchains() {
         throw new Error(`Cannot read toolchains directory: ${err}`);
     }
 }
-// Resolves the full path of a toolchain installation
-async function resolveToolchainPath(toolchain) {
-    const toolchains = await listToolchains();
-    const stable = toolchains.find((t) => t.startsWith('stable'));
-    if (!stable)
-        return null;
-    const postfix = stable.slice(stable.indexOf('-') + 1);
-    const foundPath = path.join(cargo_1.Cargo.rustupHome(), 'toolchains', `${toolchain}-${postfix}`);
-    return {
-        path: foundPath,
-        postfix,
-    };
+async function listInstalledComponents(toolchain) {
+    const args = ['component', 'list', '--installed'];
+    if (toolchain) {
+        args.unshift(`+${toolchain}`);
+    }
+    args.unshift('rustup');
+    const ret = (0, child_process_1.execSync)(args.join(' '));
+    // Parse
+    return ret.toString().trim().split('\n');
+}
+async function isComponentInstalled(component, toolchain) {
+    const installed = await listInstalledComponents(toolchain);
+    // Try to find component in installed list, we ignore the host triple suffix
+    return installed.find((c) => c.startsWith(component)) !== undefined;
+}
+async function installComponent(component, toolchain) {
+    const args = ['component', 'add', component];
+    if (toolchain) {
+        args.unshift(`+${toolchain}`);
+    }
+    await exec.exec('rustup', args);
+}
+async function getHostTriple() {
+    const stdoutBuf = (0, child_process_1.execSync)('rustc -vV').toString();
+    const lines = stdoutBuf.toString().split('\n');
+    for (const line of lines) {
+        if (line.startsWith('host:')) {
+            return line.slice('host:'.length).trim();
+        }
+    }
+    throw new Error('Cannot determine host triple from rustc -vV output');
 }
 // Saves a Rust toolchain installation to cache
 async function saveToCache(toolchainPath, key) {
@@ -44970,36 +45004,56 @@ async function saveToCache(toolchainPath, key) {
     }
 }
 // Prepares the specified Rust toolchain, installing and caching as needed
-async function prepareToolchain(toolchain, cachePrefix) {
-    await core.group(`Preparing toolchain ${toolchain}`, async () => {
-        const toolchains = await listToolchains();
-        if (toolchains.some((t) => t.includes(toolchain))) {
-            core.debug(`Toolchain ${toolchain} already installed`);
-            return;
-        }
-        const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
-        // We need to get the postfix from an existing toolchain to form the cache key
-        const pathGuess = await resolveToolchainPath(toolchain);
-        let cacheKey = undefined;
-        if (cachePrefixFinal) {
-            if (!pathGuess) {
-                core.info(`Cannot determine path for toolchain ${toolchain}, skipping cache`);
+async function prepareToolchain(toolchain, additionalComponents = [], cachePrefix) {
+    const ensureComponents = async () => {
+        let hadToInstall = false;
+        for (const component of additionalComponents) {
+            const installed = await isComponentInstalled(component, toolchain);
+            if (installed) {
+                core.debug(`Component ${component} already installed for toolchain ${toolchain}`);
             }
             else {
-                cacheKey = cachePrefixFinal
-                    ? (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${pathGuess.postfix}`, undefined, false)
-                    : undefined;
-                if (cacheKey && (await (0, cache_1.restoreFromCache)([pathGuess.path], cacheKey))) {
-                    core.info(`Restored toolchain ${toolchain} from cache`);
-                    return;
-                }
+                core.info(`Installing component ${component} for toolchain ${toolchain}`);
+                await installComponent(component, toolchain);
+                hadToInstall = true;
             }
         }
+        return hadToInstall;
+    };
+    await core.group(`Preparing toolchain ${toolchain}`, async () => {
+        const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
+        const hostTriple = await getHostTriple();
+        const toolchains = await listToolchains();
+        const toolchainPath = path.join(cargo_1.Cargo.rustupHome(), 'toolchains', `${toolchain}-${hostTriple}`);
+        const cacheKey = (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${hostTriple}`, undefined, false);
+        // Check if we have the toolchain already installed
+        if (toolchains.some((t) => t.includes(toolchain))) {
+            core.debug(`Toolchain ${toolchain} already installed`);
+            await ensureComponents();
+            // We don't update the cache if we only installed components
+            // It's not clear what is already installed
+            return;
+        }
+        // Try restore from cache
+        if (cachePrefixFinal &&
+            (await (0, cache_1.restoreFromCache)([toolchainPath], cacheKey))) {
+            core.info(`Restored toolchain ${toolchain} from cache key ${cacheKey}`);
+            const hadToInstall = await ensureComponents();
+            if (hadToInstall) {
+                core.info(`Toolchain ${toolchain} had missing components, updating cache`);
+                await saveToCache(toolchainPath, cacheKey);
+            }
+            return;
+        }
+        // Otherwise install
         core.info(`Installing toolchain ${toolchain}`);
         // To support all components, install with 'default' profile
         await exec.exec('rustup', ['install', toolchain, '--profile', 'default']);
-        if (cacheKey && pathGuess)
-            await saveToCache(pathGuess.path, cacheKey);
+        await ensureComponents();
+        if (cachePrefixFinal) {
+            await saveToCache(toolchainPath, cacheKey);
+            core.info(`Saved toolchain ${toolchain} to cache key ${cacheKey}`);
+        }
     });
 }
 

@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
 import * as path from 'path';
-import { generateCacheKey } from './cache';
+import { generateCacheKey, restoreFromCache } from './cache';
 import { Cargo } from './cargo';
 
 // Lists installed Rust toolchains
@@ -49,7 +49,6 @@ export async function installComponent(
   if (toolchain) {
     args.unshift(`+${toolchain}`);
   }
-  args.unshift('rustup');
 
   await exec.exec('rustup', args);
 }
@@ -128,21 +127,35 @@ export async function prepareToolchain(
       false,
     );
 
+    // Check if we have the toolchain already installed
     if (toolchains.some((t) => t.includes(toolchain))) {
       core.debug(`Toolchain ${toolchain} already installed`);
-      const hadToInstall = await ensureComponents();
+      await ensureComponents();
 
-      // If a component was installed, update the cache
-      if (hadToInstall && cachePrefixFinal) {
-        await saveToCache(toolchainPath, cacheKey);
+      // We don't update the cache if we only installed components
+      // It's not clear what is already installed
+      return;
+    }
+
+    // Try restore from cache
+    if (
+      cachePrefixFinal &&
+      (await restoreFromCache([toolchainPath], cacheKey))
+    ) {
+      core.info(`Restored toolchain ${toolchain} from cache key ${cacheKey}`);
+
+      const hadToInstall = await ensureComponents();
+      if (hadToInstall) {
         core.info(
-          `Saved updated toolchain ${toolchain} to cache key ${cacheKey}`,
+          `Toolchain ${toolchain} had missing components, updating cache`,
         );
+        await saveToCache(toolchainPath, cacheKey);
       }
 
       return;
     }
 
+    // Otherwise install
     core.info(`Installing toolchain ${toolchain}`);
     // To support all components, install with 'default' profile
     await exec.exec('rustup', ['install', toolchain, '--profile', 'default']);

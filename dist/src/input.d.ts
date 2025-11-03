@@ -4,6 +4,7 @@ export interface Input {
     run: string[];
     cacheKey: string;
     toolchain?: string;
+    extraComponents?: string[];
     installOnly?: boolean;
     installAdditional?: string[];
     flow: {
