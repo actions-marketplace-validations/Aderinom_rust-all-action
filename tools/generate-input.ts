@@ -1,19 +1,7 @@
 import { writeFileSync } from 'fs';
 const actionInfo = {
   title: 'Rust All Action',
-  description: `
-Simple GitHub Action to run multiple Rust workflows,
-including test, clippy, fmt, doc, and shear.
-
-Usable as a default baseline for Rust projects.
-
-By default, it caches all installed tools between runs.
-
-Ideally used in combination with sccache actions to cache
-compiled artifacts between runs.
-
-See https://github.com/Mozilla-Actions/sccache-action for sccache setup.
-`,
+  description: `Simple GitHub Action to cache (toolchains and tools) and run multiple Rust workflows.`,
 };
 
 const definition: Definition = {
@@ -35,6 +23,16 @@ const definition: Definition = {
   toolchain: {
     type: 'string',
     description: 'Rust toolchain to use',
+  },
+  installOnly: {
+    type: 'boolean',
+    description:
+      'If true, only install the toolchain and tools without running any workflows',
+  },
+  installAdditional: {
+    type: 'string[]',
+    description:
+      'Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version',
   },
   flow: {
     test: {

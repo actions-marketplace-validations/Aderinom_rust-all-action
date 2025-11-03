@@ -25,7 +25,14 @@ export class Cargo {
   ): Promise<void> {
     const cargoPath = await io.which('cargo', true);
     const binDir = path.dirname(cargoPath);
-    const cachePath = [path.join(binDir, program)];
+    let cachePath: string[];
+
+    if (process.platform === 'win32') {
+      cachePath = [path.join(binDir, `${program}.exe`)];
+    } else {
+      cachePath = [path.join(binDir, program)];
+    }
+
     const cachePrefixFinal =
       cachePrefix !== 'no-cache' ? cachePrefix : undefined;
 

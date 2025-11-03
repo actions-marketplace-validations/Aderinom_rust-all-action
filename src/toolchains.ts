@@ -25,12 +25,12 @@ async function resolveToolchainPath(toolchain: string): Promise<{
   const toolchains = await listToolchains();
   const stable = toolchains.find((t) => t.startsWith('stable'));
   if (!stable) return null;
-  const postfix = stable.slice(stable.indexOf('-'));
+  const postfix = stable.slice(stable.indexOf('-') + 1);
   const foundPath = path.join(
     os.homedir(),
     '.rustup',
     'toolchains',
-    `${toolchain}${postfix}`,
+    `${toolchain}-${postfix}`,
   );
   return {
     path: foundPath,
@@ -82,6 +82,8 @@ export async function prepareToolchain(
         cacheKey = cachePrefixFinal
           ? generateCacheKey(
               `${cachePrefixFinal}-${toolchain}-${pathGuess!.postfix}`,
+              undefined,
+              false,
             )
           : undefined;
 

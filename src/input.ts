@@ -11,6 +11,10 @@ export interface Input {
   cacheKey: string;
   //Rust toolchain to use
   toolchain?: string;
+  //If true, only install the toolchain and tools without running any workflows
+  installOnly?: boolean;
+  //Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version
+  installAdditional?: string[];
   flow: {
     test: {
       //Toolchain for test workflow
@@ -100,6 +104,24 @@ export function loadInput(): Input {
       cfg['toolchain'] = value as any;
     } else {
       cfg['toolchain'] = undefined;
+    }
+  }
+  {
+    let strvalue = core.getInput('installOnly');
+    let value = strvalue.length > 0 ? strvalue : undefined;
+    if (value !== undefined) {
+      cfg['installOnly'] = value.toLowerCase() === ('true' as any);
+    } else {
+      cfg['installOnly'] = undefined;
+    }
+  }
+  {
+    let strvalue = core.getInput('installAdditional');
+    let value = strvalue.length > 0 ? strvalue : undefined;
+    if (value !== undefined) {
+      cfg['installAdditional'] = value.split(',') as any;
+    } else {
+      cfg['installAdditional'] = undefined;
     }
   }
   cfg['flow'] = {};

@@ -6,10 +6,13 @@ import { FlowConfig } from './lib';
 interface Workflow {
   readonly name: string;
   readonly run: () => Promise<void>;
+  // List of required tools as [tool, version] tuples to ensure before running
+  readonly requiredTools: [string, string][];
 }
 
 export class TestWorkflow implements Workflow {
   readonly name = 'test';
+  readonly requiredTools: [string, string][] = [];
 
   constructor(readonly config: FlowConfig<'test'>) {}
 
@@ -30,6 +33,7 @@ export class TestWorkflow implements Workflow {
 
 export class ClippyWorkflow implements Workflow {
   readonly name = 'clippy';
+  readonly requiredTools: [string, string][] = [];
 
   constructor(readonly config: FlowConfig<'clippy'>) {}
 
@@ -49,6 +53,7 @@ export class ClippyWorkflow implements Workflow {
 
 export class FormatWorkflow implements Workflow {
   readonly name = 'fmt';
+  readonly requiredTools: [string, string][] = [];
 
   constructor(readonly config: FlowConfig<'fmt'>) {}
 
@@ -63,6 +68,7 @@ export class FormatWorkflow implements Workflow {
 
 export class DocsWorkflow implements Workflow {
   readonly name = 'doc';
+  readonly requiredTools: [string, string][] = [];
 
   constructor(readonly config: FlowConfig<'doc'>) {}
 
@@ -81,11 +87,11 @@ export class DocsWorkflow implements Workflow {
 
 export class ShearWorkflow implements Workflow {
   readonly name = 'shear';
+  readonly requiredTools: [string, string][] = [['cargo-shear', 'latest']];
 
   constructor(readonly config: FlowConfig<'shear'>) {}
 
   async run(): Promise<void> {
-    await Cargo.install('cargo-shear', 'latest', this.config.cacheKey);
     const cmd = cargoCommand('shear', this.config, []);
     info(
       `Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`,
@@ -96,11 +102,11 @@ export class ShearWorkflow implements Workflow {
 
 export class DenyWorkflow implements Workflow {
   readonly name = 'deny';
+  readonly requiredTools: [string, string][] = [['cargo-deny', 'latest']];
 
   constructor(readonly config: FlowConfig<'deny'>) {}
 
   async run(): Promise<void> {
-    await Cargo.install('cargo-deny', 'latest', this.config.cacheKey);
     const cmd = cargoCommand('deny', this.config, ['check']);
     info(
       `Executing command: 'cargo ${cmd.join(' ')}', in directory: ${this.config.project}`,

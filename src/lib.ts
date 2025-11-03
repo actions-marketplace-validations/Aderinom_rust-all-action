@@ -1,5 +1,7 @@
-import { error, group, setFailed } from '@actions/core';
+import { error, group, info, setFailed } from '@actions/core';
+import path from 'node:path';
 import parseArgsStringToArgv from 'string-argv';
+import { Cargo } from './cargo.js';
 import { Input } from './input.js';
 import { check_sccache } from './sccache.js';
 import { prepareToolchain } from './toolchains.js';
@@ -12,14 +14,22 @@ import {
   TestWorkflow,
 } from './workflows.js';
 
+interface RunResult {
+  installedToolchains: string[];
+  installedTools: [string, string][];
+  workflowResults: Record<string, true | string>;
+  succeeded: boolean;
+}
+
 // Default workflows to run if 'all' is specified
 const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 
 // Main function to run selected workflows
 //
 // Returns true if all workflows succeeded, false otherwise
-export async function run(cfg: Input): Promise<boolean> {
+export async function run(cfg: Input): Promise<RunResult> {
   check_sccache();
+  const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
 
   // Prepare toolchains
   const toolchains = new Set<string>();
@@ -32,11 +42,11 @@ export async function run(cfg: Input): Promise<boolean> {
     }
   }
 
+  const installedToolchains: string[] = [];
+  // Prepare all required toolchains
   for (const tc of toolchains) {
-    await prepareToolchain(
-      tc,
-      cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache',
-    );
+    await prepareToolchain(tc, cacheKey);
+    installedToolchains.push(tc);
   }
 
   const allWorkflows = [
@@ -60,17 +70,51 @@ export async function run(cfg: Input): Promise<boolean> {
     runfilter.includes(wf.name),
   );
 
-  let failingWorkflows: string[] = [];
+  const installedTools: [string, string][] = [];
+  // Installation of required tools for enabled workflows
+  await group('Installing tools', async () => {
+    for (const wf of enabledWorkflows) {
+      for (const [tool, version] of wf.requiredTools) {
+        await Cargo.install(tool, version, cacheKey);
+        installedTools.push([tool, version]);
+      }
+    }
 
+    if (cfg.installAdditional) {
+      for (const toolSpec of cfg.installAdditional) {
+        // Split toolSpec into tool and version (default to 'latest' if no version specified)
+        const [tool, version] = toolSpec.split('@');
+        await Cargo.install(tool, version || 'latest', cacheKey);
+        installedTools.push([tool, version || 'latest']);
+      }
+    }
+  });
+
+  // If installOnly is set, skip workflow execution
+  if (cfg.installOnly) {
+    info('Install-only mode enabled, skipping workflow execution.');
+    return {
+      installedToolchains,
+      installedTools,
+      workflowResults: {},
+      succeeded: true,
+    };
+  }
+
+  const workflowResults: Record<string, true | string> = {};
+  // Run workflows
+  let failingWorkflows: string[] = [];
   let allSucceeded = true;
   for (const wf of enabledWorkflows) {
     await group(`${wf.name}`, async () => {
       try {
         await wf.run();
+        workflowResults[wf.name] = true;
       } catch (e) {
         allSucceeded = false;
         setFailed(`Workflow ${wf.name} failed: ${e}`);
         failingWorkflows.push(wf.name);
+        workflowResults[wf.name] = e instanceof Error ? e.message : `${e}`;
       }
     });
   }
@@ -82,7 +126,12 @@ export async function run(cfg: Input): Promise<boolean> {
     }
   }
 
-  return allSucceeded;
+  return {
+    installedToolchains,
+    installedTools,
+    workflowResults,
+    succeeded: allSucceeded,
+  };
 }
 
 export type FlowConfig<T extends keyof Input['flow']> = Omit<
@@ -127,4 +176,14 @@ export function workflowConfig<T extends keyof Input['flow']>(
   finalConfig.overrideArgs = overrideArgs;
 
   return finalConfig;
+}
+
+export function addCargoToPath(): void {
+  const cargoHome = process.env.CARGO_HOME
+    ? process.env.CARGO_HOME
+    : process.platform === 'win32'
+      ? path.join(process.env.USERPROFILE || '', '.cargo')
+      : path.join(process.env.HOME || '', '.cargo');
+  const cargoBin = path.join(cargoHome, 'bin');
+  process.env.PATH = `${cargoBin}${path.delimiter}${process.env.PATH}`;
 }

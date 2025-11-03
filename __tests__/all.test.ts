@@ -1,7 +1,10 @@
+import { which } from '@actions/io';
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { Input, loadInput } from '../src/input.js';
-import { run, workflowConfig } from '../src/lib.js';
+import { addCargoToPath, run, workflowConfig } from '../src/lib.js';
+
+addCargoToPath();
 
 const project_dir = __dirname + '/test-cargo-repo';
 describe('Workflows', () => {
@@ -46,7 +49,40 @@ describe('Workflows', () => {
       options.run = [wf];
       options.cacheKey = 'no-cache';
       options.flow.clippy.toolchain = 'nightly';
-      assert.equal(await run(options), true);
+
+      const result = await run(options);
+      assert.equal(result.succeeded, true);
+      console.log(result);
     });
   }
+});
+
+describe(`Additional Tools Installation`, () => {
+  test(`should install additional tools`, async () => {
+    const options = loadInput();
+    options.project = project_dir;
+    options.run = [];
+    options.cacheKey = 'no-cache';
+    options.installOnly = true;
+    options.installAdditional = ['cargo-audit@0.17.4', 'cargo-sbom'];
+
+    const result = await run(options);
+
+    console.log(result);
+
+    // check that the tools are installed
+    which('audit', true);
+    which('sbom', true);
+
+    // check that the installed tools are reported
+    assert.deepStrictEqual(result.installedTools, [
+      ['cargo-audit', '0.17.4'],
+      ['cargo-sbom', 'latest'],
+    ]);
+
+    // no workflows should have run
+    assert.deepStrictEqual(result.workflowResults, {});
+
+    assert.equal(result.succeeded, true);
+  });
 });
