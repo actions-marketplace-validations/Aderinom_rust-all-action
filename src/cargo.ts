@@ -3,6 +3,7 @@ import * as exec from '@actions/exec';
 import * as http from '@actions/http-client';
 import * as io from '@actions/io';
 import path from 'path';
+import { ensureBinstall } from './binstall';
 import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
 
 export class Cargo {
@@ -20,12 +21,13 @@ export class Cargo {
     program: string,
     version = 'latest',
     cachePrefix?: string,
-    restoreKeys?: string[],
     useBinstall = true,
   ): Promise<void> {
     const cargoPath = await io.which('cargo', true);
     const binDir = path.dirname(cargoPath);
     const cachePath = [path.join(binDir, program)];
+    const cachePrefixFinal =
+      cachePrefix !== 'no-cache' ? cachePrefix : undefined;
 
     // Helper to check if program is already installed
     async function isInstalled(): Promise<boolean> {
@@ -55,22 +57,19 @@ export class Cargo {
 
     // Restore from cache
     const resolvedVersion = await resolveVersion(program);
-    const cacheKey =
-      cachePrefix && cachePrefix !== 'no-cache'
-        ? generateCacheKey(`${cachePrefix}-${program}`, resolvedVersion, true)
-        : undefined;
+    const cacheKey = cachePrefixFinal
+      ? generateCacheKey(
+          `${cachePrefixFinal}-${program}`,
+          resolvedVersion,
+          true,
+        )
+      : undefined;
 
     if (cacheKey && (await restoreFromCache(cachePath, cacheKey))) return;
 
     // If binstall requested, ensure it's installed
     if (useBinstall) {
-      await Cargo.install(
-        'cargo-binstall',
-        'latest',
-        cachePrefix,
-        restoreKeys,
-        false,
-      );
+      await ensureBinstall();
     }
 
     // Install the program

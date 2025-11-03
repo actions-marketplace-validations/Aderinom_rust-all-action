@@ -40145,6 +40145,65 @@ module.exports = {
 
 /***/ }),
 
+/***/ 37356:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ensureBinstall = ensureBinstall;
+const tslib_1 = __nccwpck_require__(31577);
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+const io = tslib_1.__importStar(__nccwpck_require__(73357));
+const child_process_1 = __nccwpck_require__(35317);
+const path = tslib_1.__importStar(__nccwpck_require__(16928));
+const cache_1 = __nccwpck_require__(26619);
+const cargo_1 = __nccwpck_require__(21253);
+// Ensures that cargo-binstall is installed, using caching if specified
+// otherwise installs it directly
+async function ensureBinstall(cachePrefix) {
+    const binstallPath = await io.which('binstall', false);
+    if (binstallPath) {
+        core.debug('binstall already installed');
+        return;
+    }
+    const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
+    const cargoPath = await io.which('cargo', true);
+    const binDir = path.dirname(cargoPath);
+    // try get from cache first
+    const cacheKey = (0, cache_1.generateCacheKey)('binstall', 'any', true);
+    if (cachePrefixFinal && (await (0, cache_1.restoreFromCache)([binDir], cacheKey))) {
+        core.info('Restored binstall from cache');
+        return;
+    }
+    await core.group('Installing binstall', async () => {
+        if (process.platform === 'win32') {
+            await installBinstallWindows();
+        }
+        else if (process.platform === 'linux' || process.platform === 'darwin') {
+            await installBinstallLinuxMac();
+        }
+        else {
+            cargo_1.Cargo.install('cargo-binstall', 'latest', undefined, false);
+        }
+        // save to cache
+        if (cachePrefixFinal) {
+            await (0, cache_1.saveToCache)([binDir], cacheKey);
+        }
+    });
+}
+// Installs cargo-binstall on Linux or macOS
+async function installBinstallLinuxMac() {
+    (0, child_process_1.execSync)(`curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash`);
+}
+// Installs cargo-binstall on Windows
+async function installBinstallWindows() {
+    (0, child_process_1.execSync)(`Set-ExecutionPolicy Unrestricted -Scope Process; iex (iwr "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.ps1").Content`, { shell: 'powershell.exe' });
+}
+
+
+/***/ }),
+
 /***/ 26619:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -40220,6 +40279,7 @@ const exec = tslib_1.__importStar(__nccwpck_require__(58872));
 const http = tslib_1.__importStar(__nccwpck_require__(80787));
 const io = tslib_1.__importStar(__nccwpck_require__(73357));
 const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
+const binstall_1 = __nccwpck_require__(37356);
 const cache_1 = __nccwpck_require__(26619);
 class Cargo {
     /**
@@ -40232,10 +40292,11 @@ class Cargo {
      * @param restoreKeys Optional list of restore keys
      * @param useBinstall Use cargo-binstall if true
      */
-    static async install(program, version = 'latest', cachePrefix, restoreKeys, useBinstall = true) {
+    static async install(program, version = 'latest', cachePrefix, useBinstall = true) {
         const cargoPath = await io.which('cargo', true);
         const binDir = path_1.default.dirname(cargoPath);
         const cachePath = [path_1.default.join(binDir, program)];
+        const cachePrefixFinal = cachePrefix !== 'no-cache' ? cachePrefix : undefined;
         // Helper to check if program is already installed
         async function isInstalled() {
             try {
@@ -40264,14 +40325,14 @@ class Cargo {
         }
         // Restore from cache
         const resolvedVersion = await resolveVersion(program);
-        const cacheKey = cachePrefix && cachePrefix !== 'no-cache'
-            ? (0, cache_1.generateCacheKey)(`${cachePrefix}-${program}`, resolvedVersion, true)
+        const cacheKey = cachePrefixFinal
+            ? (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${program}`, resolvedVersion, true)
             : undefined;
         if (cacheKey && (await (0, cache_1.restoreFromCache)(cachePath, cacheKey)))
             return;
         // If binstall requested, ensure it's installed
         if (useBinstall) {
-            await Cargo.install('cargo-binstall', 'latest', cachePrefix, restoreKeys, false);
+            await (0, binstall_1.ensureBinstall)();
         }
         // Install the program
         await core.group(`${useBinstall ? 'binstall' : 'install'} ${program}@${resolvedVersion}`, async () => {
@@ -40705,16 +40766,17 @@ async function prepareToolchain(toolchain, cachePrefix) {
             core.debug(`Toolchain ${toolchain} already installed`);
             return;
         }
+        const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
         // We need to get the postfix from an existing toolchain to form the cache key
         const pathGuess = await resolveToolchainPath(toolchain);
         let cacheKey = undefined;
-        if (cachePrefix && cachePrefix !== 'no-cache') {
+        if (cachePrefixFinal) {
             if (!pathGuess) {
                 core.info(`Cannot determine path for toolchain ${toolchain}, skipping cache`);
             }
             else {
-                cacheKey = cachePrefix
-                    ? (0, cache_1.generateCacheKey)(`${cachePrefix}-${toolchain}-${pathGuess.postfix}`)
+                cacheKey = cachePrefixFinal
+                    ? (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${pathGuess.postfix}`)
                     : undefined;
                 if (cacheKey && (await (0, cache_1.restoreFromCache)([pathGuess.path], cacheKey))) {
                     core.info(`Restored toolchain ${toolchain} from cache`);

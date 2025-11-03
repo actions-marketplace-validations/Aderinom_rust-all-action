@@ -10,6 +10,6 @@ export declare class Cargo {
      * @param restoreKeys Optional list of restore keys
      * @param useBinstall Use cargo-binstall if true
      */
-    static install(program: string, version?: string, cachePrefix?: string, restoreKeys?: string[], useBinstall?: boolean): Promise<void>;
+    static install(program: string, version?: string, cachePrefix?: string, useBinstall?: boolean): Promise<void>;
     static exec(args: string[], options?: exec.ExecOptions): Promise<void>;
 }

@@ -6,6 +6,7 @@ on:
       - main
 
 jobs:
+  # Run node tests
   test-node:
     runs-on: ubuntu-latest
     steps:
@@ -35,13 +36,17 @@ jobs:
       - name: Check Format
         run: pnpm prettier -c .
 
+  # Run the action on itself on multiple OSes
   run-self:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+      os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     env:
       SCCACHE_GHA_ENABLED: 'true'
       RUSTC_WRAPPER: 'sccache'
-    steps:
-      # Setup
+    steps: # Setup
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4

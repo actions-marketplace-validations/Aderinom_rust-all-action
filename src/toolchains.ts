@@ -67,19 +67,21 @@ export async function prepareToolchain(
       core.debug(`Toolchain ${toolchain} already installed`);
       return;
     }
+    const cachePrefixFinal =
+      cachePrefix == 'no-cache' ? undefined : cachePrefix;
 
     // We need to get the postfix from an existing toolchain to form the cache key
     const pathGuess = await resolveToolchainPath(toolchain);
     let cacheKey: string | undefined = undefined;
-    if (cachePrefix && cachePrefix !== 'no-cache') {
+    if (cachePrefixFinal) {
       if (!pathGuess) {
         core.info(
           `Cannot determine path for toolchain ${toolchain}, skipping cache`,
         );
       } else {
-        cacheKey = cachePrefix
+        cacheKey = cachePrefixFinal
           ? generateCacheKey(
-              `${cachePrefix}-${toolchain}-${pathGuess!.postfix}`,
+              `${cachePrefixFinal}-${toolchain}-${pathGuess!.postfix}`,
             )
           : undefined;
 
