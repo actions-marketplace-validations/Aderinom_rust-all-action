@@ -111,7 +111,9 @@ export class DenyWorkflow implements Workflow {
     info(
       `Executing command: 'cargo ${cmd.join(' ')}', in directory: ${this.config.project}`,
     );
-    await Cargo.exec(cmd, { cwd: this.config.project });
+    await Cargo.exec(cmd, {
+      cwd: this.config.project,
+    });
   }
 }
 

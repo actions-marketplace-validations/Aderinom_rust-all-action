@@ -1,1 +1,1 @@
-export declare function check_sccache(): void;
+export declare function check_sccache(): Promise<void>;

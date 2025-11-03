@@ -71,8 +71,8 @@ describe(`Additional Tools Installation`, () => {
     console.log(result);
 
     // check that the tools are installed
-    which('audit', true);
-    which('sbom', true);
+    await which('cargo-audit', true);
+    await which('cargo-sbom', true);
 
     // check that the installed tools are reported
     assert.deepStrictEqual(result.installedTools, [

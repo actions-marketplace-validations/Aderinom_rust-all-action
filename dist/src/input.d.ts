@@ -3,6 +3,8 @@ export interface Input {
     run: string[];
     cacheKey: string;
     toolchain?: string;
+    installOnly?: boolean;
+    installAdditional?: string[];
     flow: {
         test: {
             toolchain?: string;

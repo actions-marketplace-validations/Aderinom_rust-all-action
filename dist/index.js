@@ -40186,6 +40186,7 @@ async function ensureBinstall(cachePrefix) {
         else {
             cargo_1.Cargo.install('cargo-binstall', 'latest', undefined, false);
         }
+        core.info('Installed cargo-binstall');
         // save to cache
         if (cachePrefixFinal) {
             await (0, cache_1.saveToCache)([binDir], cacheKey);
@@ -40295,7 +40296,13 @@ class Cargo {
     static async install(program, version = 'latest', cachePrefix, useBinstall = true) {
         const cargoPath = await io.which('cargo', true);
         const binDir = path_1.default.dirname(cargoPath);
-        const cachePath = [path_1.default.join(binDir, program)];
+        let cachePath;
+        if (process.platform === 'win32') {
+            cachePath = [path_1.default.join(binDir, `${program}.exe`)];
+        }
+        else {
+            cachePath = [path_1.default.join(binDir, program)];
+        }
         const cachePrefixFinal = cachePrefix !== 'no-cache' ? cachePrefix : undefined;
         // Helper to check if program is already installed
         async function isInstalled() {
@@ -40332,7 +40339,7 @@ class Cargo {
             return;
         // If binstall requested, ensure it's installed
         if (useBinstall) {
-            await (0, binstall_1.ensureBinstall)();
+            await (0, binstall_1.ensureBinstall)(cachePrefixFinal);
         }
         // Install the program
         await core.group(`${useBinstall ? 'binstall' : 'install'} ${program}@${resolvedVersion}`, async () => {
@@ -40417,6 +40424,26 @@ function loadInput() {
         }
         else {
             cfg['toolchain'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('installOnly');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['installOnly'] = value.toLowerCase() === 'true';
+        }
+        else {
+            cfg['installOnly'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('installAdditional');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value !== undefined) {
+            cfg['installAdditional'] = value.split(',');
+        }
+        else {
+            cfg['installAdditional'] = undefined;
         }
     }
     cfg['flow'] = {};
@@ -40587,9 +40614,12 @@ function loadInput() {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = run;
 exports.workflowConfig = workflowConfig;
+exports.addCargoToPath = addCargoToPath;
 const tslib_1 = __nccwpck_require__(31577);
 const core_1 = __nccwpck_require__(59999);
+const node_path_1 = tslib_1.__importDefault(__nccwpck_require__(76760));
 const string_argv_1 = tslib_1.__importDefault(__nccwpck_require__(30761));
+const cargo_js_1 = __nccwpck_require__(21253);
 const sccache_js_1 = __nccwpck_require__(55893);
 const toolchains_js_1 = __nccwpck_require__(15685);
 const workflows_js_1 = __nccwpck_require__(68027);
@@ -40599,7 +40629,8 @@ const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 //
 // Returns true if all workflows succeeded, false otherwise
 async function run(cfg) {
-    (0, sccache_js_1.check_sccache)();
+    await (0, sccache_js_1.check_sccache)();
+    const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
     // Prepare toolchains
     const toolchains = new Set();
     if (cfg.toolchain) {
@@ -40610,8 +40641,11 @@ async function run(cfg) {
             toolchains.add(flow.toolchain);
         }
     }
+    const installedToolchains = [];
+    // Prepare all required toolchains
     for (const tc of toolchains) {
-        await (0, toolchains_js_1.prepareToolchain)(tc, cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache');
+        await (0, toolchains_js_1.prepareToolchain)(tc, cacheKey);
+        installedToolchains.push(tc);
     }
     const allWorkflows = [
         new workflows_js_1.FormatWorkflow(workflowConfig(cfg, 'fmt')),
@@ -40630,17 +40664,49 @@ async function run(cfg) {
         }
     });
     const enabledWorkflows = allWorkflows.filter((wf) => runfilter.includes(wf.name));
+    const installedTools = [];
+    // Installation of required tools for enabled workflows
+    await (0, core_1.group)('Installing tools', async () => {
+        for (const wf of enabledWorkflows) {
+            for (const [tool, version] of wf.requiredTools) {
+                await cargo_js_1.Cargo.install(tool, version, cacheKey);
+                installedTools.push([tool, version]);
+            }
+        }
+        if (cfg.installAdditional) {
+            for (const toolSpec of cfg.installAdditional) {
+                // Split toolSpec into tool and version (default to 'latest' if no version specified)
+                const [tool, version] = toolSpec.split('@');
+                await cargo_js_1.Cargo.install(tool, version || 'latest', cacheKey);
+                installedTools.push([tool, version || 'latest']);
+            }
+        }
+    });
+    // If installOnly is set, skip workflow execution
+    if (cfg.installOnly) {
+        (0, core_1.info)('Install-only mode enabled, skipping workflow execution.');
+        return {
+            installedToolchains,
+            installedTools,
+            workflowResults: {},
+            succeeded: true,
+        };
+    }
+    const workflowResults = {};
+    // Run workflows
     let failingWorkflows = [];
     let allSucceeded = true;
     for (const wf of enabledWorkflows) {
         await (0, core_1.group)(`${wf.name}`, async () => {
             try {
                 await wf.run();
+                workflowResults[wf.name] = true;
             }
             catch (e) {
                 allSucceeded = false;
                 (0, core_1.setFailed)(`Workflow ${wf.name} failed: ${e}`);
                 failingWorkflows.push(wf.name);
+                workflowResults[wf.name] = e instanceof Error ? e.message : `${e}`;
             }
         });
     }
@@ -40650,7 +40716,12 @@ async function run(cfg) {
             (0, core_1.error)(` - ${wf}`);
         }
     }
-    return allSucceeded;
+    return {
+        installedToolchains,
+        installedTools,
+        workflowResults,
+        succeeded: allSucceeded,
+    };
 }
 // Helper to build workflow config by merging base config with specific flow config
 function workflowConfig(cfg, flow) {
@@ -40676,6 +40747,15 @@ function workflowConfig(cfg, flow) {
     finalConfig.overrideArgs = overrideArgs;
     return finalConfig;
 }
+function addCargoToPath() {
+    const cargoHome = process.env.CARGO_HOME
+        ? process.env.CARGO_HOME
+        : process.platform === 'win32'
+            ? node_path_1.default.join(process.env.USERPROFILE || '', '.cargo')
+            : node_path_1.default.join(process.env.HOME || '', '.cargo');
+    const cargoBin = node_path_1.default.join(cargoHome, 'bin');
+    process.env.PATH = `${cargoBin}${node_path_1.default.delimiter}${process.env.PATH}`;
+}
 
 
 /***/ }),
@@ -40688,7 +40768,7 @@ function workflowConfig(cfg, flow) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.check_sccache = check_sccache;
 const core_1 = __nccwpck_require__(59999);
-function check_sccache() {
+async function check_sccache() {
     if (!process.env.SCCACHE_PATH) {
         (0, core_1.warning)('SCCACHE_PATH is not set. Consider using sccache for caching builds. See https://github.com/Mozilla-Actions/sccache-action for more details.');
         return;
@@ -40696,6 +40776,9 @@ function check_sccache() {
     (0, core_1.info)(`SCCACHE_PATH is set to ${process.env.SCCACHE_PATH}`);
     if (!process.env.RUSTC_WRAPPER) {
         (0, core_1.warning)('RUSTC_WRAPPER is not set. You may want to set `RUSTC_WRAPPER=sccache` to enable sccache for Rust builds.');
+    }
+    else {
+        (0, core_1.info)(`RUSTC_WRAPPER is set to ${process.env.RUSTC_WRAPPER}`);
     }
 }
 
@@ -40734,8 +40817,8 @@ async function resolveToolchainPath(toolchain) {
     const stable = toolchains.find((t) => t.startsWith('stable'));
     if (!stable)
         return null;
-    const postfix = stable.slice(stable.indexOf('-'));
-    const foundPath = path.join(os_1.default.homedir(), '.rustup', 'toolchains', `${toolchain}${postfix}`);
+    const postfix = stable.slice(stable.indexOf('-') + 1);
+    const foundPath = path.join(os_1.default.homedir(), '.rustup', 'toolchains', `${toolchain}-${postfix}`);
     return {
         path: foundPath,
         postfix,
@@ -40776,7 +40859,7 @@ async function prepareToolchain(toolchain, cachePrefix) {
             }
             else {
                 cacheKey = cachePrefixFinal
-                    ? (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${pathGuess.postfix}`)
+                    ? (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${pathGuess.postfix}`, undefined, false)
                     : undefined;
                 if (cacheKey && (await (0, cache_1.restoreFromCache)([pathGuess.path], cacheKey))) {
                     core.info(`Restored toolchain ${toolchain} from cache`);
@@ -40807,6 +40890,7 @@ const cargo_1 = __nccwpck_require__(21253);
 class TestWorkflow {
     config;
     name = 'test';
+    requiredTools = [];
     constructor(config) {
         this.config = config;
     }
@@ -40824,6 +40908,7 @@ exports.TestWorkflow = TestWorkflow;
 class ClippyWorkflow {
     config;
     name = 'clippy';
+    requiredTools = [];
     constructor(config) {
         this.config = config;
     }
@@ -40842,6 +40927,7 @@ exports.ClippyWorkflow = ClippyWorkflow;
 class FormatWorkflow {
     config;
     name = 'fmt';
+    requiredTools = [];
     constructor(config) {
         this.config = config;
     }
@@ -40855,6 +40941,7 @@ exports.FormatWorkflow = FormatWorkflow;
 class DocsWorkflow {
     config;
     name = 'doc';
+    requiredTools = [];
     constructor(config) {
         this.config = config;
     }
@@ -40872,11 +40959,11 @@ exports.DocsWorkflow = DocsWorkflow;
 class ShearWorkflow {
     config;
     name = 'shear';
+    requiredTools = [['cargo-shear', 'latest']];
     constructor(config) {
         this.config = config;
     }
     async run() {
-        await cargo_1.Cargo.install('cargo-shear', 'latest', this.config.cacheKey);
         const cmd = cargoCommand('shear', this.config, []);
         (0, node_console_1.info)(`Executing command: cargo ${cmd.join(' ')}, in directory: ${this.config.project}`);
         await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
@@ -40886,14 +40973,16 @@ exports.ShearWorkflow = ShearWorkflow;
 class DenyWorkflow {
     config;
     name = 'deny';
+    requiredTools = [['cargo-deny', 'latest']];
     constructor(config) {
         this.config = config;
     }
     async run() {
-        await cargo_1.Cargo.install('cargo-deny', 'latest', this.config.cacheKey);
         const cmd = cargoCommand('deny', this.config, ['check']);
         (0, node_console_1.info)(`Executing command: 'cargo ${cmd.join(' ')}', in directory: ${this.config.project}`);
-        await cargo_1.Cargo.exec(cmd, { cwd: this.config.project });
+        await cargo_1.Cargo.exec(cmd, {
+            cwd: this.config.project,
+        });
     }
 }
 exports.DenyWorkflow = DenyWorkflow;
@@ -41097,6 +41186,14 @@ module.exports = require("node:https");
 
 "use strict";
 module.exports = require("node:os");
+
+/***/ }),
+
+/***/ 76760:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:path");
 
 /***/ }),
 

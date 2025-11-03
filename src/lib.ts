@@ -28,7 +28,7 @@ const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 //
 // Returns true if all workflows succeeded, false otherwise
 export async function run(cfg: Input): Promise<RunResult> {
-  check_sccache();
+  await check_sccache();
   const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
 
   // Prepare toolchains

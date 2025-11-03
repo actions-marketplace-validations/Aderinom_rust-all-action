@@ -35,6 +35,8 @@ export async function ensureBinstall(cachePrefix?: string): Promise<void> {
       Cargo.install('cargo-binstall', 'latest', undefined, false);
     }
 
+    core.info('Installed cargo-binstall');
+
     // save to cache
     if (cachePrefixFinal) {
       await saveToCache([binDir], cacheKey);

@@ -13,10 +13,10 @@ jobs:
       # Setup
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: '24' # Need 24 for testing
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -49,10 +49,10 @@ jobs:
     steps: # Setup
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'pnpm'
+          package-manager-cache: false
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run Self as Action

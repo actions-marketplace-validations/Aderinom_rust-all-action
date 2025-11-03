@@ -76,7 +76,7 @@ export class Cargo {
 
     // If binstall requested, ensure it's installed
     if (useBinstall) {
-      await ensureBinstall();
+      await ensureBinstall(cachePrefixFinal);
     }
 
     // Install the program
