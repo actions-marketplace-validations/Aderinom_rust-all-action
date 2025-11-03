@@ -40156,7 +40156,6 @@ const tslib_1 = __nccwpck_require__(31577);
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
 const io = tslib_1.__importStar(__nccwpck_require__(73357));
 const child_process_1 = __nccwpck_require__(35317);
-const path = tslib_1.__importStar(__nccwpck_require__(16928));
 const cache_1 = __nccwpck_require__(26619);
 const cargo_1 = __nccwpck_require__(21253);
 // Ensures that cargo-binstall is installed, using caching if specified
@@ -40168,8 +40167,7 @@ async function ensureBinstall(cachePrefix) {
         return;
     }
     const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
-    const cargoPath = await io.which('cargo', true);
-    const binDir = path.dirname(cargoPath);
+    const binDir = cargo_1.Cargo.binDir();
     // try get from cache first
     const cacheKey = (0, cache_1.generateCacheKey)('binstall', 'any', true);
     if (cachePrefixFinal && (await (0, cache_1.restoreFromCache)([binDir], cacheKey))) {
@@ -40280,9 +40278,29 @@ const exec = tslib_1.__importStar(__nccwpck_require__(58872));
 const http = tslib_1.__importStar(__nccwpck_require__(80787));
 const io = tslib_1.__importStar(__nccwpck_require__(73357));
 const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
+const process_1 = __nccwpck_require__(932);
 const binstall_1 = __nccwpck_require__(37356);
 const cache_1 = __nccwpck_require__(26619);
 class Cargo {
+    /**
+     * @returns Path to cargo target directory
+     */
+    static targetDir() {
+        return process.env.CARGO_TARGET_DIR || path_1.default.join((0, process_1.cwd)(), 'target');
+    }
+    /**
+     * @returns Path to cargo binary directory
+     */
+    static binDir() {
+        const cargoHome = process.env.CARGO_HOME || path_1.default.join(process.env.HOME || '', '.cargo');
+        return path_1.default.join(cargoHome, 'target');
+    }
+    /**
+     * @returns Path to rustup home directory
+     */
+    static rustupHome() {
+        return (process.env.RUSTUP_HOME || path_1.default.join(process.env.HOME || '', '.rustup'));
+    }
     /**
      * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
      * Optionally restores/saves to cache.
@@ -40294,8 +40312,8 @@ class Cargo {
      * @param useBinstall Use cargo-binstall if true
      */
     static async install(program, version = 'latest', cachePrefix, useBinstall = true) {
-        const cargoPath = await io.which('cargo', true);
-        const binDir = path_1.default.dirname(cargoPath);
+        const cargoBin = await io.which('cargo', true);
+        const binDir = Cargo.binDir();
         let cachePath;
         if (process.platform === 'win32') {
             cachePath = [path_1.default.join(binDir, `${program}.exe`)];
@@ -40348,7 +40366,7 @@ class Cargo {
                 args.push('--version', resolvedVersion);
             }
             args.push(program);
-            await exec.exec(cargoPath, args);
+            await exec.exec(cargoBin, args);
         });
         // Save to cache
         if (cacheKey)
@@ -40798,12 +40816,12 @@ const core = tslib_1.__importStar(__nccwpck_require__(59999));
 const exec = tslib_1.__importStar(__nccwpck_require__(58872));
 const fs_1 = __nccwpck_require__(79896);
 const promises_1 = __nccwpck_require__(91943);
-const os_1 = tslib_1.__importDefault(__nccwpck_require__(70857));
 const path = tslib_1.__importStar(__nccwpck_require__(16928));
 const cache_1 = __nccwpck_require__(26619);
+const cargo_1 = __nccwpck_require__(21253);
 // Lists installed Rust toolchains
 async function listToolchains() {
-    const dir = path.join(os_1.default.homedir(), '.rustup', 'toolchains');
+    const dir = path.join(cargo_1.Cargo.rustupHome(), 'toolchains');
     try {
         return await (0, promises_1.readdir)(dir);
     }
@@ -40818,7 +40836,7 @@ async function resolveToolchainPath(toolchain) {
     if (!stable)
         return null;
     const postfix = stable.slice(stable.indexOf('-') + 1);
-    const foundPath = path.join(os_1.default.homedir(), '.rustup', 'toolchains', `${toolchain}-${postfix}`);
+    const foundPath = path.join(cargo_1.Cargo.rustupHome(), 'toolchains', `${toolchain}-${postfix}`);
     return {
         path: foundPath,
         postfix,
@@ -41250,6 +41268,14 @@ module.exports = require("path");
 
 "use strict";
 module.exports = require("perf_hooks");
+
+/***/ }),
+
+/***/ 932:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("process");
 
 /***/ }),
 

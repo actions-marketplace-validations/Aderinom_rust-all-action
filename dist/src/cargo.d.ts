@@ -1,6 +1,18 @@
 import * as exec from '@actions/exec';
 export declare class Cargo {
     /**
+     * @returns Path to cargo target directory
+     */
+    static targetDir(): string;
+    /**
+     * @returns Path to cargo binary directory
+     */
+    static binDir(): string;
+    /**
+     * @returns Path to rustup home directory
+     */
+    static rustupHome(): string;
+    /**
      * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
      * Optionally restores/saves to cache.
      *

@@ -3,13 +3,13 @@ import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
-import os from 'os';
 import * as path from 'path';
 import { generateCacheKey, restoreFromCache } from './cache';
+import { Cargo } from './cargo';
 
 // Lists installed Rust toolchains
 async function listToolchains(): Promise<string[]> {
-  const dir = path.join(os.homedir(), '.rustup', 'toolchains');
+  const dir = path.join(Cargo.rustupHome(), 'toolchains');
   try {
     return await readdir(dir);
   } catch (err) {
@@ -27,8 +27,7 @@ async function resolveToolchainPath(toolchain: string): Promise<{
   if (!stable) return null;
   const postfix = stable.slice(stable.indexOf('-') + 1);
   const foundPath = path.join(
-    os.homedir(),
-    '.rustup',
+    Cargo.rustupHome(),
     'toolchains',
     `${toolchain}-${postfix}`,
   );

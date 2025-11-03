@@ -3,10 +3,36 @@ import * as exec from '@actions/exec';
 import * as http from '@actions/http-client';
 import * as io from '@actions/io';
 import path from 'path';
+import { cwd } from 'process';
 import { ensureBinstall } from './binstall';
 import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
 
 export class Cargo {
+  /**
+   * @returns Path to cargo target directory
+   */
+  public static targetDir(): string {
+    return process.env.CARGO_TARGET_DIR || path.join(cwd(), 'target');
+  }
+
+  /**
+   * @returns Path to cargo binary directory
+   */
+  public static binDir(): string {
+    const cargoHome =
+      process.env.CARGO_HOME || path.join(process.env.HOME || '', '.cargo');
+    return path.join(cargoHome, 'target');
+  }
+
+  /**
+   * @returns Path to rustup home directory
+   */
+  public static rustupHome(): string {
+    return (
+      process.env.RUSTUP_HOME || path.join(process.env.HOME || '', '.rustup')
+    );
+  }
+
   /**
    * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
    * Optionally restores/saves to cache.
@@ -23,8 +49,8 @@ export class Cargo {
     cachePrefix?: string,
     useBinstall = true,
   ): Promise<void> {
-    const cargoPath = await io.which('cargo', true);
-    const binDir = path.dirname(cargoPath);
+    const cargoBin = await io.which('cargo', true);
+    const binDir = Cargo.binDir();
     let cachePath: string[];
 
     if (process.platform === 'win32') {
@@ -90,7 +116,7 @@ export class Cargo {
         }
         args.push(program);
 
-        await exec.exec(cargoPath, args);
+        await exec.exec(cargoBin, args);
       },
     );
 

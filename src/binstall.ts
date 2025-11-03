@@ -1,7 +1,6 @@
 import * as core from '@actions/core';
 import * as io from '@actions/io';
 import { execSync } from 'child_process';
-import * as path from 'path';
 import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
 import { Cargo } from './cargo';
 
@@ -16,8 +15,7 @@ export async function ensureBinstall(cachePrefix?: string): Promise<void> {
 
   const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
 
-  const cargoPath = await io.which('cargo', true);
-  const binDir = path.dirname(cargoPath);
+  const binDir = Cargo.binDir();
 
   // try get from cache first
   const cacheKey = generateCacheKey('binstall', 'any', true);
