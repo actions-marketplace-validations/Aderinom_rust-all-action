@@ -21,7 +21,7 @@ export class Cargo {
   public static binDir(): string {
     const cargoHome =
       process.env.CARGO_HOME || path.join(process.env.HOME || '', '.cargo');
-    return path.join(cargoHome, 'target');
+    return path.join(cargoHome, 'bin');
   }
 
   /**

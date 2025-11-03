@@ -40293,7 +40293,7 @@ class Cargo {
      */
     static binDir() {
         const cargoHome = process.env.CARGO_HOME || path_1.default.join(process.env.HOME || '', '.cargo');
-        return path_1.default.join(cargoHome, 'target');
+        return path_1.default.join(cargoHome, 'bin');
     }
     /**
      * @returns Path to rustup home directory
