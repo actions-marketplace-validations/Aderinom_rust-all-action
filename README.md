@@ -94,14 +94,39 @@ jobs:
           run: 'shear'
 ```
 
+### Custom Workflows
+
+To run additional tools, you can install and cache additional Cargo tools by supplying a comma‑separated list via `installAdditional`.
+
+```yaml
+- uses: aderinom/rust-all-action@v1
+  with:
+    run: ''
+    installAdditional: cargo-audit@latest, cargo-sbom
+```
+
+### Install Only
+
+To pre-warm the tool cache, you can optionally have a workflow which installs and caches all required tools.
+
+```yaml
+- uses: aderinom/rust-all-action@v1
+  with:
+    run: 'all-default' # Workflows which's tools will be installed
+    installAdditional: cargo-audit@latest, cargo-sbom #Additional tools to install
+    installOnly: true
+```
+
 ## Inputs
 
-| Input       | Description                                               | Default       |
-| ----------- | --------------------------------------------------------- | ------------- |
-| `project`   | Path to Rust project.                                     | `./`          |
-| `cacheKey`  | Cache key for installed tools. Use `no-cache` to disable. | `rax-cache`   |
-| `run`       | Comma-separated list of workflows to execute.             | `all-default` |
-| `toolchain` | Default Rust toolchain.                                   | _(none)_      |
+| Input               | Description                                               | Default       |
+| ------------------- | --------------------------------------------------------- | ------------- |
+| `project`           | Path to Rust project.                                     | `./`          |
+| `cacheKey`          | Cache key for installed tools. Use `no-cache` to disable. | `rax-cache`   |
+| `run`               | Comma-separated list of workflows to execute.             | `all-default` |
+| `toolchain`         | Default Rust toolchain.                                   | _(none)_      |
+| `installAdditional` | Additional cargo tools to install                         | _(none)_      |
+| `installOnly`       | Only installs and caches toolchains and tools             | false         |
 
 ### Workflow Overrides
 
