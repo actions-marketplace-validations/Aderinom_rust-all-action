@@ -1,9 +1,9 @@
-import * as cache from '@actions/cache';
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as http from '@actions/http-client';
 import * as io from '@actions/io';
 import path from 'path';
+import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
 
 export class Cargo {
   /**
@@ -47,28 +47,6 @@ export class Cargo {
       return resp.result.crate.newest_version;
     }
 
-    // Helper to restore from cache
-    async function restoreFromCache(key: string): Promise<boolean> {
-      const restored = await cache.restoreCache(cachePath, key, restoreKeys);
-      if (restored) {
-        core.info(`Using cached ${program}@${version} from key ${restored}`);
-        return true;
-      }
-      return false;
-    }
-
-    // Helper to save to cache
-    async function saveToCache(key: string): Promise<void> {
-      try {
-        await cache.saveCache(cachePath, key);
-        core.info(`Cached ${program}@${version} with key ${key}`);
-      } catch (err: any) {
-        if (err.name === cache.ValidationError.name) throw err;
-        if (err.name === cache.ReserveCacheError.name)
-          core.warning(`Caching failed: ${err.message}`);
-      }
-    }
-
     // Check if already installed
     if (await isInstalled()) {
       core.debug(`${program} already installed`);
@@ -79,9 +57,10 @@ export class Cargo {
     const resolvedVersion = await resolveVersion(program);
     const cacheKey =
       cachePrefix && cachePrefix !== 'no-cache'
-        ? `${cachePrefix}-${program}-${resolvedVersion}`
+        ? generateCacheKey(`${cachePrefix}-${program}`, resolvedVersion, true)
         : undefined;
-    if (cacheKey && (await restoreFromCache(cacheKey))) return;
+
+    if (cacheKey && (await restoreFromCache(cachePath, cacheKey))) return;
 
     // If binstall requested, ensure it's installed
     if (useBinstall) {
@@ -110,7 +89,7 @@ export class Cargo {
     );
 
     // Save to cache
-    if (cacheKey) await saveToCache(cacheKey);
+    if (cacheKey) await saveToCache(cachePath, cacheKey);
     return;
   }
 

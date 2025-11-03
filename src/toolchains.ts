@@ -5,6 +5,7 @@ import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
 import os from 'os';
 import * as path from 'path';
+import { generateCacheKey, restoreFromCache } from './cache';
 
 // Lists installed Rust toolchains
 async function listToolchains(): Promise<string[]> {
@@ -37,19 +38,6 @@ async function resolveToolchainPath(toolchain: string): Promise<{
   };
 }
 
-// Prepares a Rust toolchain by installing it and caching if needed
-async function restoreFromCache(
-  toolchainPath: string,
-  key: string,
-): Promise<boolean> {
-  const restored = await cache.restoreCache([toolchainPath], key);
-  if (restored) {
-    core.info(`Restored ${toolchainPath} from cache key ${restored}`);
-    return true;
-  }
-  return false;
-}
-
 // Saves a Rust toolchain installation to cache
 async function saveToCache(toolchainPath: string, key: string): Promise<void> {
   if (!existsSync(toolchainPath)) {
@@ -80,18 +68,27 @@ export async function prepareToolchain(
       return;
     }
 
+    // We need to get the postfix from an existing toolchain to form the cache key
     const pathGuess = await resolveToolchainPath(toolchain);
+    let cacheKey: string | undefined = undefined;
+    if (cachePrefix && cachePrefix !== 'no-cache') {
+      if (!pathGuess) {
+        core.info(
+          `Cannot determine path for toolchain ${toolchain}, skipping cache`,
+        );
+      } else {
+        cacheKey = cachePrefix
+          ? generateCacheKey(
+              `${cachePrefix}-${toolchain}-${pathGuess!.postfix}`,
+            )
+          : undefined;
 
-    const cacheKey = cachePrefix
-      ? `${cachePrefix}-${toolchain}${pathGuess?.postfix}`
-      : undefined;
-
-    if (
-      cacheKey &&
-      pathGuess &&
-      (await restoreFromCache(pathGuess.path, cacheKey))
-    )
-      return;
+        if (cacheKey && (await restoreFromCache([pathGuess.path], cacheKey))) {
+          core.info(`Restored toolchain ${toolchain} from cache`);
+          return;
+        }
+      }
+    }
 
     core.info(`Installing toolchain ${toolchain}`);
     // To support all components, install with 'default' profile
