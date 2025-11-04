@@ -44371,6 +44371,9 @@ class Cargo {
     static rustupHome() {
         return (process.env.RUSTUP_HOME || path_1.default.join(process.env.HOME || '', '.rustup'));
     }
+    static cargoLock(projectDir) {
+        return path_1.default.join(projectDir, 'Cargo.lock');
+    }
     static async rustToolchainTomlChannel(dir = (0, process_1.cwd)()) {
         if (!(0, fs_1.existsSync)(path_1.default.join(dir, 'rust-toolchain.toml'))) {
             core.debug('No rust-toolchain.toml found');
@@ -44745,6 +44748,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = run;
 exports.workflowConfig = workflowConfig;
 exports.addCargoToPath = addCargoToPath;
+exports.timeSinceStart = timeSinceStart;
 const tslib_1 = __nccwpck_require__(31577);
 const core_1 = __nccwpck_require__(59999);
 const node_console_1 = __nccwpck_require__(37540);
@@ -44760,6 +44764,7 @@ const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 //
 // Returns true if all workflows succeeded, false otherwise
 async function run(cfg) {
+    const start = Date.now();
     (0, core_1.info)(`cwd: ${process.cwd()}`);
     (0, core_1.info)(`project path: ${cfg.project}`);
     const tomlChannel = await cargo_js_1.Cargo.rustToolchainTomlChannel(cfg.project);
@@ -44785,7 +44790,7 @@ async function run(cfg) {
     const installedToolchains = [];
     // Prepare all required toolchains
     for (const tc of toolchains) {
-        await (0, toolchains_js_1.prepareToolchain)(tc, cfg.extraComponents, cacheKey);
+        await (0, toolchains_js_1.prepareToolchain)(start, tc, cfg.extraComponents, cacheKey);
         installedToolchains.push(tc);
     }
     const allWorkflows = [
@@ -44807,7 +44812,7 @@ async function run(cfg) {
     const enabledWorkflows = allWorkflows.filter((wf) => runfilter.includes(wf.name));
     const installedTools = [];
     // Installation of required tools for enabled workflows
-    await (0, core_1.group)('Installing tools', async () => {
+    await (0, core_1.group)(`Installing tools: ${timeSinceStart(start)}`, async () => {
         for (const wf of enabledWorkflows) {
             for (const [tool, version] of wf.requiredTools) {
                 await cargo_js_1.Cargo.install(tool, version, cacheKey);
@@ -44838,7 +44843,7 @@ async function run(cfg) {
     let failingWorkflows = [];
     let allSucceeded = true;
     for (const wf of enabledWorkflows) {
-        await (0, core_1.group)(`${wf.name}`, async () => {
+        await (0, core_1.group)(`${wf.name}: ${timeSinceStart(start)}`, async () => {
             try {
                 await wf.run();
                 workflowResults[wf.name] = true;
@@ -44851,6 +44856,7 @@ async function run(cfg) {
             }
         });
     }
+    (0, core_1.info)(`Finished after: ${timeSinceStart(start)}`);
     if (!allSucceeded) {
         (0, core_1.error)(`The following workflows failed:`);
         for (const wf of failingWorkflows) {
@@ -44893,6 +44899,23 @@ function addCargoToPath() {
             : node_path_1.default.join(process.env.HOME || '', '.cargo');
     const cargoBin = node_path_1.default.join(cargoHome, 'bin');
     process.env.PATH = `${cargoBin}${node_path_1.default.delimiter}${process.env.PATH}`;
+}
+function timeSinceStart(start) {
+    const duration = Date.now() - start;
+    if (duration < 1000) {
+        // ms format
+        return `${duration}ms`;
+    }
+    else if (duration < 60_000) {
+        // ss format
+        return `${(duration / 1000).toFixed(0)}s`;
+    }
+    else {
+        // mm:ss format
+        const minutes = Math.floor(duration / 60_000);
+        const seconds = ((duration % 60_000) / 1000).toFixed(0).padStart(2, '0');
+        return `${minutes}m:${seconds}s`;
+    }
 }
 
 
@@ -44944,6 +44967,7 @@ const promises_1 = __nccwpck_require__(91943);
 const path = tslib_1.__importStar(__nccwpck_require__(16928));
 const cache_1 = __nccwpck_require__(26619);
 const cargo_1 = __nccwpck_require__(21253);
+const lib_1 = __nccwpck_require__(71374);
 // Lists installed Rust toolchains
 async function listToolchains() {
     const dir = path.join(cargo_1.Cargo.rustupHome(), 'toolchains');
@@ -45004,7 +45028,7 @@ async function saveToCache(toolchainPath, key) {
     }
 }
 // Prepares the specified Rust toolchain, installing and caching as needed
-async function prepareToolchain(toolchain, additionalComponents = [], cachePrefix) {
+async function prepareToolchain(startTime, toolchain, additionalComponents = [], cachePrefix) {
     const ensureComponents = async () => {
         let hadToInstall = false;
         for (const component of additionalComponents) {
@@ -45020,7 +45044,7 @@ async function prepareToolchain(toolchain, additionalComponents = [], cachePrefi
         }
         return hadToInstall;
     };
-    await core.group(`Preparing toolchain ${toolchain}`, async () => {
+    await core.group(`Preparing toolchain ${toolchain}: ${(0, lib_1.timeSinceStart)(startTime)}`, async () => {
         const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
         const hostTriple = await getHostTriple();
         const toolchains = await listToolchains();

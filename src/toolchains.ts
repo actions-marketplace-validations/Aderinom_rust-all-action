@@ -7,6 +7,7 @@ import { readdir } from 'fs/promises';
 import * as path from 'path';
 import { generateCacheKey, restoreFromCache } from './cache';
 import { Cargo } from './cargo';
+import { timeSinceStart } from './lib';
 
 // Lists installed Rust toolchains
 async function listToolchains(): Promise<string[]> {
@@ -86,6 +87,7 @@ async function saveToCache(toolchainPath: string, key: string): Promise<void> {
 
 // Prepares the specified Rust toolchain, installing and caching as needed
 export async function prepareToolchain(
+  startTime: number,
   toolchain: string,
   additionalComponents: string[] = [],
   cachePrefix?: string,
@@ -110,60 +112,63 @@ export async function prepareToolchain(
     return hadToInstall;
   };
 
-  await core.group(`Preparing toolchain ${toolchain}`, async () => {
-    const cachePrefixFinal =
-      cachePrefix == 'no-cache' ? undefined : cachePrefix;
+  await core.group(
+    `Preparing toolchain ${toolchain}: ${timeSinceStart(startTime)}`,
+    async () => {
+      const cachePrefixFinal =
+        cachePrefix == 'no-cache' ? undefined : cachePrefix;
 
-    const hostTriple = await getHostTriple();
-    const toolchains = await listToolchains();
-    const toolchainPath = path.join(
-      Cargo.rustupHome(),
-      'toolchains',
-      `${toolchain}-${hostTriple}`,
-    );
-    const cacheKey = generateCacheKey(
-      `${cachePrefixFinal}-${toolchain}-${hostTriple}`,
-      undefined,
-      false,
-    );
+      const hostTriple = await getHostTriple();
+      const toolchains = await listToolchains();
+      const toolchainPath = path.join(
+        Cargo.rustupHome(),
+        'toolchains',
+        `${toolchain}-${hostTriple}`,
+      );
+      const cacheKey = generateCacheKey(
+        `${cachePrefixFinal}-${toolchain}-${hostTriple}`,
+        undefined,
+        false,
+      );
 
-    // Check if we have the toolchain already installed
-    if (toolchains.some((t) => t.includes(toolchain))) {
-      core.debug(`Toolchain ${toolchain} already installed`);
-      await ensureComponents();
+      // Check if we have the toolchain already installed
+      if (toolchains.some((t) => t.includes(toolchain))) {
+        core.debug(`Toolchain ${toolchain} already installed`);
+        await ensureComponents();
 
-      // We don't update the cache if we only installed components
-      // It's not clear what is already installed
-      return;
-    }
-
-    // Try restore from cache
-    if (
-      cachePrefixFinal &&
-      (await restoreFromCache([toolchainPath], cacheKey))
-    ) {
-      core.info(`Restored toolchain ${toolchain} from cache key ${cacheKey}`);
-
-      const hadToInstall = await ensureComponents();
-      if (hadToInstall) {
-        core.info(
-          `Toolchain ${toolchain} had missing components, updating cache`,
-        );
-        await saveToCache(toolchainPath, cacheKey);
+        // We don't update the cache if we only installed components
+        // It's not clear what is already installed
+        return;
       }
 
-      return;
-    }
+      // Try restore from cache
+      if (
+        cachePrefixFinal &&
+        (await restoreFromCache([toolchainPath], cacheKey))
+      ) {
+        core.info(`Restored toolchain ${toolchain} from cache key ${cacheKey}`);
 
-    // Otherwise install
-    core.info(`Installing toolchain ${toolchain}`);
-    // To support all components, install with 'default' profile
-    await exec.exec('rustup', ['install', toolchain, '--profile', 'default']);
-    await ensureComponents();
+        const hadToInstall = await ensureComponents();
+        if (hadToInstall) {
+          core.info(
+            `Toolchain ${toolchain} had missing components, updating cache`,
+          );
+          await saveToCache(toolchainPath, cacheKey);
+        }
 
-    if (cachePrefixFinal) {
-      await saveToCache(toolchainPath, cacheKey);
-      core.info(`Saved toolchain ${toolchain} to cache key ${cacheKey}`);
-    }
-  });
+        return;
+      }
+
+      // Otherwise install
+      core.info(`Installing toolchain ${toolchain}`);
+      // To support all components, install with 'default' profile
+      await exec.exec('rustup', ['install', toolchain, '--profile', 'default']);
+      await ensureComponents();
+
+      if (cachePrefixFinal) {
+        await saveToCache(toolchainPath, cacheKey);
+        core.info(`Saved toolchain ${toolchain} to cache key ${cacheKey}`);
+      }
+    },
+  );
 }

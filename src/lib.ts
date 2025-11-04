@@ -29,6 +29,7 @@ const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
 //
 // Returns true if all workflows succeeded, false otherwise
 export async function run(cfg: Input): Promise<RunResult> {
+  const start = Date.now();
   info(`cwd: ${process.cwd()}`);
   info(`project path: ${cfg.project}`);
 
@@ -62,7 +63,7 @@ export async function run(cfg: Input): Promise<RunResult> {
   const installedToolchains: string[] = [];
   // Prepare all required toolchains
   for (const tc of toolchains) {
-    await prepareToolchain(tc, cfg.extraComponents, cacheKey);
+    await prepareToolchain(start, tc, cfg.extraComponents, cacheKey);
     installedToolchains.push(tc);
   }
 
@@ -89,7 +90,7 @@ export async function run(cfg: Input): Promise<RunResult> {
 
   const installedTools: [string, string][] = [];
   // Installation of required tools for enabled workflows
-  await group('Installing tools', async () => {
+  await group(`Installing tools: ${timeSinceStart(start)}`, async () => {
     for (const wf of enabledWorkflows) {
       for (const [tool, version] of wf.requiredTools) {
         await Cargo.install(tool, version, cacheKey);
@@ -123,7 +124,7 @@ export async function run(cfg: Input): Promise<RunResult> {
   let failingWorkflows: string[] = [];
   let allSucceeded = true;
   for (const wf of enabledWorkflows) {
-    await group(`${wf.name}`, async () => {
+    await group(`${wf.name}: ${timeSinceStart(start)}`, async () => {
       try {
         await wf.run();
         workflowResults[wf.name] = true;
@@ -135,6 +136,8 @@ export async function run(cfg: Input): Promise<RunResult> {
       }
     });
   }
+
+  info(`Finished after: ${timeSinceStart(start)}`);
 
   if (!allSucceeded) {
     error(`The following workflows failed:`);
@@ -200,4 +203,20 @@ export function addCargoToPath(): void {
       : path.join(process.env.HOME || '', '.cargo');
   const cargoBin = path.join(cargoHome, 'bin');
   process.env.PATH = `${cargoBin}${path.delimiter}${process.env.PATH}`;
+}
+
+export function timeSinceStart(start: number): string {
+  const duration = Date.now() - start;
+  if (duration < 1000) {
+    // ms format
+    return `${duration}ms`;
+  } else if (duration < 60_000) {
+    // ss format
+    return `${(duration / 1000).toFixed(0)}s`;
+  } else {
+    // mm:ss format
+    const minutes = Math.floor(duration / 60_000);
+    const seconds = ((duration % 60_000) / 1000).toFixed(0).padStart(2, '0');
+    return `${minutes}m:${seconds}s`;
+  }
 }

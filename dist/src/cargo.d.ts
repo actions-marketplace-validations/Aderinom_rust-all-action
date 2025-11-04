@@ -12,6 +12,7 @@ export declare class Cargo {
      * @returns Path to rustup home directory
      */
     static rustupHome(): string;
+    static cargoLock(projectDir: string): string;
     static rustToolchainTomlChannel(dir?: string): Promise<string | undefined>;
     /**
      * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.

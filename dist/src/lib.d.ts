@@ -15,4 +15,5 @@ export type FlowConfig<T extends keyof Input['flow']> = Omit<Input['flow'][T], '
 };
 export declare function workflowConfig<T extends keyof Input['flow']>(cfg: Input, flow: T): FlowConfig<T>;
 export declare function addCargoToPath(): void;
+export declare function timeSinceStart(start: number): string;
 export {};

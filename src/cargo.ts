@@ -36,6 +36,10 @@ export class Cargo {
     );
   }
 
+  public static cargoLock(projectDir: string): string {
+    return path.join(projectDir, 'Cargo.lock');
+  }
+
   public static async rustToolchainTomlChannel(
     dir: string = cwd(),
   ): Promise<string | undefined> {
