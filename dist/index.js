@@ -44270,6 +44270,100 @@ async function installBinstallWindows() {
 
 /***/ }),
 
+/***/ 84954:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.restoreBuildCache = restoreBuildCache;
+exports.saveBuildCache = saveBuildCache;
+exports.buildCacheStrategy = buildCacheStrategy;
+const core_1 = __nccwpck_require__(59999);
+const fs_1 = __nccwpck_require__(79896);
+const cache_1 = __nccwpck_require__(26619);
+const cargo_1 = __nccwpck_require__(21253);
+// Optimized for keeping dependencies cached between builds
+// Uses a fallbackBranch to restore from
+// Then saves cache based on Cargo.lock hash or branch name
+//
+// Advantages:
+// - We most of the time restore all dependencies from cache
+// - We have one cache entry per updated lock file
+// Disadvantages:
+// - Every branch will have to rebuild changes to internal dependencies
+// Format: {prefix}-build-{platform-arch}-{hash(cargo.lock) or branch-name}
+function buildCacheKey(projectDir, fallbackBranch) {
+    const targetDir = cargo_1.Cargo.targetDir(projectDir);
+    if (!(0, fs_1.existsSync)(targetDir)) {
+        (0, core_1.warning)(`Target directory does not exist: ${targetDir}, cannot build cache key.`);
+    }
+    const lockFile = cargo_1.Cargo.cargoLock(projectDir);
+    let lockHashOrBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action'; //branch
+    if (fallbackBranch == lockHashOrBranch) {
+        // This branch is the fallback branch, we don't use the lock file hash
+    }
+    else if ((0, fs_1.existsSync)(lockFile)) {
+        const lockContent = (__nccwpck_require__(79896).readFileSync)(lockFile, 'utf8');
+        const crypto = __nccwpck_require__(76982);
+        const hash = crypto.createHash('sha256').update(lockContent).digest('hex');
+        lockHashOrBranch = hash.slice(0, 20); // use first 20 chars of hash
+    }
+    const platform = process.platform;
+    const arch = process.arch;
+    return `rax-cache-build-${platform}-${arch}-${lockHashOrBranch}`;
+}
+// Format: {prefix}-build-{platform-arch}-{fallback-branch}
+function buildFallbackCacheKey(fallbackBranch) {
+    const platform = process.platform;
+    const arch = process.arch;
+    return `rax-cache-build-${platform}-${arch}-${fallbackBranch}`;
+}
+// Restores target folders from cache
+async function restoreBuildCache(projectDir, fallbackBranch) {
+    const targetDir = cargo_1.Cargo.targetDir(projectDir);
+    const cacheKey = buildCacheKey(projectDir, fallbackBranch);
+    const fallbackKey = buildFallbackCacheKey(fallbackBranch);
+    const restoredKey = await (0, cache_1.restoreFromCache)([targetDir], cacheKey, [
+        fallbackKey,
+    ]);
+    if (restoredKey) {
+        console.info(`Restored build cache from key: ${restoredKey}`);
+    }
+    else {
+        console.info(`No build cache found for keys: ${cacheKey}, ${fallbackKey}`);
+    }
+}
+async function saveBuildCache(projectDir, fallbackBranch) {
+    const targetDir = cargo_1.Cargo.targetDir(projectDir);
+    const cacheKey = buildCacheKey(projectDir, fallbackBranch);
+    // TODO: Need to prune the target folder to reduce size
+    if (!(0, fs_1.existsSync)(targetDir)) {
+        (0, core_1.warning)(`Target directory does not exist: ${targetDir}, skipping cache save.`);
+        return;
+    }
+    await (0, cache_1.saveToCache)([targetDir], cacheKey);
+    (0, core_1.info)(`Saved build cache with key: ${cacheKey}`);
+}
+function buildCacheStrategy(projectDir, strategy, fallbackBranch) {
+    switch (strategy) {
+        case 'github':
+            return {
+                restore: async () => {
+                    await restoreBuildCache(projectDir, fallbackBranch);
+                },
+                save: async () => {
+                    await saveBuildCache(projectDir, fallbackBranch);
+                },
+            };
+        default:
+            return undefined;
+    }
+}
+
+
+/***/ }),
+
 /***/ 26619:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -44488,13 +44582,14 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.loadInput = loadInput;
 const tslib_1 = __nccwpck_require__(31577);
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
+;
 function loadInput() {
     const cfg = {};
     {
         let strvalue = core.getInput('project');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = '.';
+            value = ".";
         }
         if (value !== undefined) {
             cfg['project'] = value;
@@ -44517,7 +44612,7 @@ function loadInput() {
         let strvalue = core.getInput('run');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = 'all-default';
+            value = "all-default";
         }
         if (value !== undefined) {
             cfg['run'] = value.split(',');
@@ -44530,7 +44625,7 @@ function loadInput() {
         let strvalue = core.getInput('cacheKey');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = 'rax-cache';
+            value = "rax-cache";
         }
         if (value !== undefined) {
             cfg['cacheKey'] = value;
@@ -44579,6 +44674,32 @@ function loadInput() {
             cfg['installAdditional'] = undefined;
         }
     }
+    {
+        let strvalue = core.getInput('buildCacheStrategy');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = "none";
+        }
+        if (value !== undefined) {
+            cfg['buildCacheStrategy'] = value;
+        }
+        else {
+            cfg['buildCacheStrategy'] = undefined;
+        }
+    }
+    {
+        let strvalue = core.getInput('buildCacheFallbackBranch');
+        let value = strvalue.length > 0 ? strvalue : undefined;
+        if (value === undefined) {
+            value = "main";
+        }
+        if (value !== undefined) {
+            cfg['buildCacheFallbackBranch'] = value;
+        }
+        else {
+            cfg['buildCacheFallbackBranch'] = undefined;
+        }
+    }
     cfg['flow'] = {};
     cfg['flow']['test'] = {};
     {
@@ -44605,7 +44726,7 @@ function loadInput() {
         let strvalue = core.getInput('flow-test-failFast');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = 'false';
+            value = "false";
         }
         if (value !== undefined) {
             cfg['flow']['test']['failFast'] = value.toLowerCase() === 'true';
@@ -44639,11 +44760,10 @@ function loadInput() {
         let strvalue = core.getInput('flow-clippy-denyWarnings');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = 'true';
+            value = "true";
         }
         if (value !== undefined) {
-            cfg['flow']['clippy']['denyWarnings'] =
-                value.toLowerCase() === 'true';
+            cfg['flow']['clippy']['denyWarnings'] = value.toLowerCase() === 'true';
         }
         else {
             cfg['flow']['clippy']['denyWarnings'] = undefined;
@@ -44754,8 +44874,8 @@ const core_1 = __nccwpck_require__(59999);
 const node_console_1 = __nccwpck_require__(37540);
 const node_path_1 = tslib_1.__importDefault(__nccwpck_require__(76760));
 const string_argv_1 = tslib_1.__importDefault(__nccwpck_require__(30761));
+const build_cache_js_1 = __nccwpck_require__(84954);
 const cargo_js_1 = __nccwpck_require__(21253);
-const sccache_js_1 = __nccwpck_require__(55893);
 const toolchains_js_1 = __nccwpck_require__(15685);
 const workflows_js_1 = __nccwpck_require__(68027);
 // Default workflows to run if 'all' is specified
@@ -44775,7 +44895,7 @@ async function run(cfg) {
         }
         cfg.toolchain = tomlChannel;
     }
-    await (0, sccache_js_1.check_sccache)();
+    const buildCache = (0, build_cache_js_1.buildCacheStrategy)(cfg.project, cfg.buildCacheStrategy, cfg.buildCacheFallbackBranch);
     const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
     // Prepare toolchains
     const toolchains = new Set();
@@ -44838,6 +44958,11 @@ async function run(cfg) {
             succeeded: true,
         };
     }
+    if (buildCache) {
+        await (0, core_1.group)(`Restoring build cache: ${timeSinceStart(start)}`, async () => {
+            await buildCache.restore();
+        });
+    }
     const workflowResults = {};
     // Run workflows
     let failingWorkflows = [];
@@ -44854,6 +44979,11 @@ async function run(cfg) {
                 failingWorkflows.push(wf.name);
                 workflowResults[wf.name] = e instanceof Error ? e.message : `${e}`;
             }
+        });
+    }
+    if (buildCache) {
+        await (0, core_1.group)(`Saving build cache: ${timeSinceStart(start)}`, async () => {
+            await buildCache.save();
         });
     }
     (0, core_1.info)(`Finished after: ${timeSinceStart(start)}`);
@@ -44915,31 +45045,6 @@ function timeSinceStart(start) {
         const minutes = Math.floor(duration / 60_000);
         const seconds = ((duration % 60_000) / 1000).toFixed(0).padStart(2, '0');
         return `${minutes}m:${seconds}s`;
-    }
-}
-
-
-/***/ }),
-
-/***/ 55893:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.check_sccache = check_sccache;
-const core_1 = __nccwpck_require__(59999);
-async function check_sccache() {
-    if (!process.env.SCCACHE_PATH) {
-        (0, core_1.warning)('SCCACHE_PATH is not set. Consider using sccache for caching builds. See https://github.com/Mozilla-Actions/sccache-action for more details.');
-        return;
-    }
-    (0, core_1.info)(`SCCACHE_PATH is set to ${process.env.SCCACHE_PATH}`);
-    if (!process.env.RUSTC_WRAPPER) {
-        (0, core_1.warning)('RUSTC_WRAPPER is not set. You may want to set `RUSTC_WRAPPER=sccache` to enable sccache for Rust builds.');
-    }
-    else {
-        (0, core_1.info)(`RUSTC_WRAPPER is set to ${process.env.RUSTC_WRAPPER}`);
     }
 }
 

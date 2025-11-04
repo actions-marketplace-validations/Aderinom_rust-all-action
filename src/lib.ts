@@ -2,9 +2,9 @@ import { error, group, info, setFailed } from '@actions/core';
 import { warn } from 'node:console';
 import path from 'node:path';
 import parseArgsStringToArgv from 'string-argv';
+import { buildCacheStrategy } from './build-cache.js';
 import { Cargo } from './cargo.js';
 import { Input } from './input.js';
-import { check_sccache } from './sccache.js';
 import { prepareToolchain } from './toolchains.js';
 import {
   ClippyWorkflow,
@@ -46,7 +46,12 @@ export async function run(cfg: Input): Promise<RunResult> {
     cfg.toolchain = tomlChannel;
   }
 
-  await check_sccache();
+  const buildCache = buildCacheStrategy(
+    cfg.project,
+    cfg.buildCacheStrategy,
+    cfg.buildCacheFallbackBranch,
+  );
+
   const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
 
   // Prepare toolchains
@@ -119,6 +124,12 @@ export async function run(cfg: Input): Promise<RunResult> {
     };
   }
 
+  if (buildCache) {
+    await group(`Restoring build cache: ${timeSinceStart(start)}`, async () => {
+      await buildCache.restore();
+    });
+  }
+
   const workflowResults: Record<string, true | string> = {};
   // Run workflows
   let failingWorkflows: string[] = [];
@@ -134,6 +145,12 @@ export async function run(cfg: Input): Promise<RunResult> {
         failingWorkflows.push(wf.name);
         workflowResults[wf.name] = e instanceof Error ? e.message : `${e}`;
       }
+    });
+  }
+
+  if (buildCache) {
+    await group(`Saving build cache: ${timeSinceStart(start)}`, async () => {
+      await buildCache.save();
     });
   }
 

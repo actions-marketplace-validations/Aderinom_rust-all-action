@@ -19,6 +19,10 @@ export interface Input {
   installOnly?: boolean;
   //Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version
   installAdditional?: string[];
+  //"github" to enable build caching through GitHub Cache (default: "none")
+  buildCacheStrategy: string;
+  //Fallback branch to use for build cache if the current branch has no cache (default: "main")
+  buildCacheFallbackBranch: string;
   flow: {
     test: {
       //Toolchain for test workflow
@@ -144,6 +148,30 @@ export function loadInput(): Input {
       cfg['installAdditional'] = value.split(',') as any;
     } else {
       cfg['installAdditional'] = undefined;
+    }
+  }
+  {
+    let strvalue = core.getInput('buildCacheStrategy');
+    let value = strvalue.length > 0 ? strvalue : undefined;
+    if (value === undefined) {
+      value = 'none';
+    }
+    if (value !== undefined) {
+      cfg['buildCacheStrategy'] = value as any;
+    } else {
+      cfg['buildCacheStrategy'] = undefined;
+    }
+  }
+  {
+    let strvalue = core.getInput('buildCacheFallbackBranch');
+    let value = strvalue.length > 0 ? strvalue : undefined;
+    if (value === undefined) {
+      value = 'main';
+    }
+    if (value !== undefined) {
+      cfg['buildCacheFallbackBranch'] = value as any;
+    } else {
+      cfg['buildCacheFallbackBranch'] = undefined;
     }
   }
   cfg['flow'] = {};

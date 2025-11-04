@@ -46,6 +46,17 @@ const definition: Definition = {
     description:
       'Additional cargo tools to install and cache e.g. cargo-audit@0.17.4, cargo-toolX@version',
   },
+  buildCacheStrategy: {
+    type: 'string',
+    description: '"github" to enable build caching through GitHub Cache',
+    default: 'none',
+  },
+  buildCacheFallbackBranch: {
+    type: 'string',
+    description:
+      'Fallback branch to use for build cache if the current branch has no cache',
+    default: 'main',
+  },
   flow: {
     test: {
       toolchain: {

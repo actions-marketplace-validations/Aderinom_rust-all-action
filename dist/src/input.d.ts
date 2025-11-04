@@ -7,6 +7,8 @@ export interface Input {
     extraComponents?: string[];
     installOnly?: boolean;
     installAdditional?: string[];
+    buildCacheStrategy: string;
+    buildCacheFallbackBranch: string;
     flow: {
         test: {
             toolchain?: string;
