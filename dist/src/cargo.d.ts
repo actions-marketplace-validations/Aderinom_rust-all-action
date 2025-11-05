@@ -1,4 +1,4 @@
-import * as exec from '@actions/exec';
+import * as actionexec from '@actions/exec';
 export declare class Cargo {
     /**
      * @returns Path to cargo target directory
@@ -8,6 +8,7 @@ export declare class Cargo {
      * @returns Path to cargo binary directory
      */
     static binDir(): string;
+    static cargoHome(): string;
     /**
      * @returns Path to rustup home directory
      */
@@ -25,5 +26,5 @@ export declare class Cargo {
      * @param useBinstall Use cargo-binstall if true
      */
     static install(program: string, version?: string, cachePrefix?: string, useBinstall?: boolean): Promise<void>;
-    static exec(args: string[], options?: exec.ExecOptions): Promise<void>;
+    static exec(args: string[], options?: actionexec.ExecOptions): Promise<void>;
 }

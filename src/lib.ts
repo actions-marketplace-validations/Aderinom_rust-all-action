@@ -1,11 +1,17 @@
 import { error, group, info, setFailed } from '@actions/core';
+import { exec } from '@actions/exec';
 import { warn } from 'node:console';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import parseArgsStringToArgv from 'string-argv';
 import { buildCacheStrategy } from './build-cache.js';
 import { Cargo } from './cargo.js';
 import { Input } from './input.js';
-import { prepareToolchain } from './toolchains.js';
+import {
+  getDefaultToolchain,
+  prepareToolchain,
+  setDefaultToolchain,
+} from './rustup.js';
 import {
   ClippyWorkflow,
   DenyWorkflow,
@@ -32,6 +38,12 @@ export async function run(cfg: Input): Promise<RunResult> {
   const start = Date.now();
   info(`cwd: ${process.cwd()}`);
   info(`project path: ${cfg.project}`);
+  info(`cargo home: ${Cargo.cargoHome()}`);
+  info(`rustup home: ${Cargo.rustupHome()}`);
+  info(`target dir: ${Cargo.targetDir(cfg.project)}`);
+
+  // print rustup show
+  await exec('rustup', ['show']);
 
   const tomlChannel = await Cargo.rustToolchainTomlChannel(cfg.project);
 
@@ -63,6 +75,19 @@ export async function run(cfg: Input): Promise<RunResult> {
     if (flow.toolchain) {
       toolchains.add(flow.toolchain);
     }
+  }
+
+  // Set default toolchain to stable to allow rustc -vV calls
+  if ((await getDefaultToolchain()) === undefined) {
+    // Doesn't matter since toolchain cache on windows is as fast as fresh install
+    // notice(
+    //   'No default toolchain set, since we require a toolchain to get the host triple, it is set to a used toolchain',
+    // );
+    // notice(
+    //   'This means the used toolchain can not be cached properly. To fix this, set a default toolchain in your environment or rustup.',
+    // );
+
+    await setDefaultToolchain(cfg.toolchain || 'stable');
   }
 
   const installedToolchains: string[] = [];
@@ -212,12 +237,13 @@ export function workflowConfig<T extends keyof Input['flow']>(
   return finalConfig;
 }
 
+// Ensures that Cargo's bin directory is in PATH
 export function addCargoToPath(): void {
   const cargoHome = process.env.CARGO_HOME
     ? process.env.CARGO_HOME
     : process.platform === 'win32'
       ? path.join(process.env.USERPROFILE || '', '.cargo')
-      : path.join(process.env.HOME || '', '.cargo');
+      : path.join(homedir() || '', '.cargo');
   const cargoBin = path.join(cargoHome, 'bin');
   process.env.PATH = `${cargoBin}${path.delimiter}${process.env.PATH}`;
 }

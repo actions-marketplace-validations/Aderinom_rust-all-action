@@ -1,14 +1,16 @@
 import * as core from '@actions/core';
-import * as exec from '@actions/exec';
+import * as actionexec from '@actions/exec';
 import * as http from '@actions/http-client';
 import * as io from '@actions/io';
 import { warn } from 'console';
 import { existsSync, readFileSync } from 'fs';
+import { homedir, platform } from 'os';
 import path from 'path';
 import { cwd } from 'process';
 import * as toml from 'toml';
 import { ensureBinstall } from './binstall';
 import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
+import { spawnAsync } from './util';
 
 export class Cargo {
   /**
@@ -22,18 +24,19 @@ export class Cargo {
    * @returns Path to cargo binary directory
    */
   public static binDir(): string {
-    const cargoHome =
-      process.env.CARGO_HOME || path.join(process.env.HOME || '', '.cargo');
+    const cargoHome = Cargo.cargoHome();
     return path.join(cargoHome, 'bin');
+  }
+
+  public static cargoHome(): string {
+    return process.env.CARGO_HOME || path.join(homedir() || '', '.cargo');
   }
 
   /**
    * @returns Path to rustup home directory
    */
   public static rustupHome(): string {
-    return (
-      process.env.RUSTUP_HOME || path.join(process.env.HOME || '', '.rustup')
-    );
+    return process.env.RUSTUP_HOME || path.join(homedir() || '', '.rustup');
   }
 
   public static cargoLock(projectDir: string): string {
@@ -150,7 +153,7 @@ export class Cargo {
         }
         args.push(program);
 
-        await exec.exec(cargoBin, args);
+        await actionexec.exec(cargoBin, args);
       },
     );
 
@@ -162,8 +165,19 @@ export class Cargo {
   // Executes a cargo command with given arguments
   public static async exec(
     args: string[],
-    options?: exec.ExecOptions,
+    options?: actionexec.ExecOptions,
   ): Promise<void> {
-    await exec.exec('cargo', args, options);
+    if (platform() === 'win32') {
+      // On Windows, we have to use powershell because otherwise env vars are not recignized by cargo
+      await spawnAsync('cargo', args, {
+        ...options,
+        shell: 'powershell.exe',
+      });
+    } else {
+      await actionexec.exec('cargo', args, {
+        ...options,
+        env: process.env as any,
+      });
+    }
   }
 }

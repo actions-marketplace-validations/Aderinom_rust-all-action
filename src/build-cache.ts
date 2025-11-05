@@ -15,13 +15,6 @@ import { Cargo } from './cargo';
 
 // Format: {prefix}-build-{platform-arch}-{hash(cargo.lock) or branch-name}
 function buildCacheKey(projectDir: string, fallbackBranch: string): string {
-  const targetDir = Cargo.targetDir(projectDir);
-  if (!existsSync(targetDir)) {
-    warning(
-      `Target directory does not exist: ${targetDir}, cannot build cache key.`,
-    );
-  }
-
   const lockFile = Cargo.cargoLock(projectDir);
   let lockHashOrBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action'; //branch
 

@@ -5,12 +5,13 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
 import * as path from 'path';
+import { platform } from 'process';
 import { generateCacheKey, restoreFromCache } from './cache';
 import { Cargo } from './cargo';
 import { timeSinceStart } from './lib';
 
 // Lists installed Rust toolchains
-async function listToolchains(): Promise<string[]> {
+export async function listToolchains(): Promise<string[]> {
   const dir = path.join(Cargo.rustupHome(), 'toolchains');
   try {
     return await readdir(dir);
@@ -52,6 +53,21 @@ export async function installComponent(
   }
 
   await exec.exec('rustup', args);
+}
+
+// Gets the default Rust toolchain or undefined if not set (or command fails)
+export async function getDefaultToolchain(): Promise<string | undefined> {
+  try {
+    const stdoutBuf = execSync('rustup show active-toolchain').toString();
+    return stdoutBuf.trim();
+  } catch (err) {
+    return undefined;
+  }
+}
+
+export async function setDefaultToolchain(toolchain: string): Promise<void> {
+  core.notice(`Setting default toolchain to ${toolchain}`);
+  await exec.exec('rustup', ['default', toolchain]);
 }
 
 export async function getHostTriple(): Promise<string> {
@@ -115,8 +131,13 @@ export async function prepareToolchain(
   await core.group(
     `Preparing toolchain ${toolchain}: ${timeSinceStart(startTime)}`,
     async () => {
-      const cachePrefixFinal =
+      let cachePrefixFinal =
         cachePrefix == 'no-cache' ? undefined : cachePrefix;
+
+      if (platform === 'win32') {
+        // It's faster to install without caching on Windows
+        cachePrefixFinal = undefined;
+      }
 
       const hostTriple = await getHostTriple();
       const toolchains = await listToolchains();

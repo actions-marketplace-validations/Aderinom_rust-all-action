@@ -44294,10 +44294,6 @@ const cargo_1 = __nccwpck_require__(21253);
 // - Every branch will have to rebuild changes to internal dependencies
 // Format: {prefix}-build-{platform-arch}-{hash(cargo.lock) or branch-name}
 function buildCacheKey(projectDir, fallbackBranch) {
-    const targetDir = cargo_1.Cargo.targetDir(projectDir);
-    if (!(0, fs_1.existsSync)(targetDir)) {
-        (0, core_1.warning)(`Target directory does not exist: ${targetDir}, cannot build cache key.`);
-    }
     const lockFile = cargo_1.Cargo.cargoLock(projectDir);
     let lockHashOrBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action'; //branch
     if (fallbackBranch == lockHashOrBranch) {
@@ -44435,16 +44431,18 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Cargo = void 0;
 const tslib_1 = __nccwpck_require__(31577);
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
-const exec = tslib_1.__importStar(__nccwpck_require__(58872));
+const actionexec = tslib_1.__importStar(__nccwpck_require__(58872));
 const http = tslib_1.__importStar(__nccwpck_require__(80787));
 const io = tslib_1.__importStar(__nccwpck_require__(73357));
 const console_1 = __nccwpck_require__(64236);
 const fs_1 = __nccwpck_require__(79896);
+const os_1 = __nccwpck_require__(70857);
 const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
 const process_1 = __nccwpck_require__(932);
 const toml = tslib_1.__importStar(__nccwpck_require__(19435));
 const binstall_1 = __nccwpck_require__(37356);
 const cache_1 = __nccwpck_require__(26619);
+const util_1 = __nccwpck_require__(75989);
 class Cargo {
     /**
      * @returns Path to cargo target directory
@@ -44456,14 +44454,17 @@ class Cargo {
      * @returns Path to cargo binary directory
      */
     static binDir() {
-        const cargoHome = process.env.CARGO_HOME || path_1.default.join(process.env.HOME || '', '.cargo');
+        const cargoHome = Cargo.cargoHome();
         return path_1.default.join(cargoHome, 'bin');
+    }
+    static cargoHome() {
+        return process.env.CARGO_HOME || path_1.default.join((0, os_1.homedir)() || '', '.cargo');
     }
     /**
      * @returns Path to rustup home directory
      */
     static rustupHome() {
-        return (process.env.RUSTUP_HOME || path_1.default.join(process.env.HOME || '', '.rustup'));
+        return process.env.RUSTUP_HOME || path_1.default.join((0, os_1.homedir)() || '', '.rustup');
     }
     static cargoLock(projectDir) {
         return path_1.default.join(projectDir, 'Cargo.lock');
@@ -44555,7 +44556,7 @@ class Cargo {
                 args.push('--version', resolvedVersion);
             }
             args.push(program);
-            await exec.exec(cargoBin, args);
+            await actionexec.exec(cargoBin, args);
         });
         // Save to cache
         if (cacheKey)
@@ -44564,7 +44565,19 @@ class Cargo {
     }
     // Executes a cargo command with given arguments
     static async exec(args, options) {
-        await exec.exec('cargo', args, options);
+        if ((0, os_1.platform)() === 'win32') {
+            // On Windows, we have to use powershell because otherwise env vars are not recignized by cargo
+            await (0, util_1.spawnAsync)('cargo', args, {
+                ...options,
+                shell: 'powershell.exe',
+            });
+        }
+        else {
+            await actionexec.exec('cargo', args, {
+                ...options,
+                env: process.env,
+            });
+        }
     }
 }
 exports.Cargo = Cargo;
@@ -44582,14 +44595,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.loadInput = loadInput;
 const tslib_1 = __nccwpck_require__(31577);
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
-;
 function loadInput() {
     const cfg = {};
     {
         let strvalue = core.getInput('project');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = ".";
+            value = '.';
         }
         if (value !== undefined) {
             cfg['project'] = value;
@@ -44612,7 +44624,7 @@ function loadInput() {
         let strvalue = core.getInput('run');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = "all-default";
+            value = 'all-default';
         }
         if (value !== undefined) {
             cfg['run'] = value.split(',');
@@ -44625,7 +44637,7 @@ function loadInput() {
         let strvalue = core.getInput('cacheKey');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = "rax-cache";
+            value = 'rax-cache';
         }
         if (value !== undefined) {
             cfg['cacheKey'] = value;
@@ -44678,7 +44690,7 @@ function loadInput() {
         let strvalue = core.getInput('buildCacheStrategy');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = "none";
+            value = 'none';
         }
         if (value !== undefined) {
             cfg['buildCacheStrategy'] = value;
@@ -44691,7 +44703,7 @@ function loadInput() {
         let strvalue = core.getInput('buildCacheFallbackBranch');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = "main";
+            value = 'main';
         }
         if (value !== undefined) {
             cfg['buildCacheFallbackBranch'] = value;
@@ -44726,7 +44738,7 @@ function loadInput() {
         let strvalue = core.getInput('flow-test-failFast');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = "false";
+            value = 'false';
         }
         if (value !== undefined) {
             cfg['flow']['test']['failFast'] = value.toLowerCase() === 'true';
@@ -44760,10 +44772,11 @@ function loadInput() {
         let strvalue = core.getInput('flow-clippy-denyWarnings');
         let value = strvalue.length > 0 ? strvalue : undefined;
         if (value === undefined) {
-            value = "true";
+            value = 'true';
         }
         if (value !== undefined) {
-            cfg['flow']['clippy']['denyWarnings'] = value.toLowerCase() === 'true';
+            cfg['flow']['clippy']['denyWarnings'] =
+                value.toLowerCase() === 'true';
         }
         else {
             cfg['flow']['clippy']['denyWarnings'] = undefined;
@@ -44871,12 +44884,14 @@ exports.addCargoToPath = addCargoToPath;
 exports.timeSinceStart = timeSinceStart;
 const tslib_1 = __nccwpck_require__(31577);
 const core_1 = __nccwpck_require__(59999);
+const exec_1 = __nccwpck_require__(58872);
 const node_console_1 = __nccwpck_require__(37540);
+const node_os_1 = __nccwpck_require__(48161);
 const node_path_1 = tslib_1.__importDefault(__nccwpck_require__(76760));
 const string_argv_1 = tslib_1.__importDefault(__nccwpck_require__(30761));
 const build_cache_js_1 = __nccwpck_require__(84954);
 const cargo_js_1 = __nccwpck_require__(21253);
-const toolchains_js_1 = __nccwpck_require__(15685);
+const rustup_js_1 = __nccwpck_require__(61154);
 const workflows_js_1 = __nccwpck_require__(68027);
 // Default workflows to run if 'all' is specified
 const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
@@ -44887,6 +44902,11 @@ async function run(cfg) {
     const start = Date.now();
     (0, core_1.info)(`cwd: ${process.cwd()}`);
     (0, core_1.info)(`project path: ${cfg.project}`);
+    (0, core_1.info)(`cargo home: ${cargo_js_1.Cargo.cargoHome()}`);
+    (0, core_1.info)(`rustup home: ${cargo_js_1.Cargo.rustupHome()}`);
+    (0, core_1.info)(`target dir: ${cargo_js_1.Cargo.targetDir(cfg.project)}`);
+    // print rustup show
+    await (0, exec_1.exec)('rustup', ['show']);
     const tomlChannel = await cargo_js_1.Cargo.rustToolchainTomlChannel(cfg.project);
     if (tomlChannel) {
         (0, core_1.info)(`Detected rust-toolchain.toml channel: ${tomlChannel}`);
@@ -44907,10 +44927,21 @@ async function run(cfg) {
             toolchains.add(flow.toolchain);
         }
     }
+    // Set default toolchain to stable to allow rustc -vV calls
+    if ((await (0, rustup_js_1.getDefaultToolchain)()) === undefined) {
+        // Doesn't matter since toolchain cache on windows is as fast as fresh install
+        // notice(
+        //   'No default toolchain set, since we require a toolchain to get the host triple, it is set to a used toolchain',
+        // );
+        // notice(
+        //   'This means the used toolchain can not be cached properly. To fix this, set a default toolchain in your environment or rustup.',
+        // );
+        await (0, rustup_js_1.setDefaultToolchain)(cfg.toolchain || 'stable');
+    }
     const installedToolchains = [];
     // Prepare all required toolchains
     for (const tc of toolchains) {
-        await (0, toolchains_js_1.prepareToolchain)(start, tc, cfg.extraComponents, cacheKey);
+        await (0, rustup_js_1.prepareToolchain)(start, tc, cfg.extraComponents, cacheKey);
         installedToolchains.push(tc);
     }
     const allWorkflows = [
@@ -45021,12 +45052,13 @@ function workflowConfig(cfg, flow) {
     };
     return finalConfig;
 }
+// Ensures that Cargo's bin directory is in PATH
 function addCargoToPath() {
     const cargoHome = process.env.CARGO_HOME
         ? process.env.CARGO_HOME
         : process.platform === 'win32'
             ? node_path_1.default.join(process.env.USERPROFILE || '', '.cargo')
-            : node_path_1.default.join(process.env.HOME || '', '.cargo');
+            : node_path_1.default.join((0, node_os_1.homedir)() || '', '.cargo');
     const cargoBin = node_path_1.default.join(cargoHome, 'bin');
     process.env.PATH = `${cargoBin}${node_path_1.default.delimiter}${process.env.PATH}`;
 }
@@ -45051,15 +45083,18 @@ function timeSinceStart(start) {
 
 /***/ }),
 
-/***/ 15685:
+/***/ 61154:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.listToolchains = listToolchains;
 exports.listInstalledComponents = listInstalledComponents;
 exports.isComponentInstalled = isComponentInstalled;
 exports.installComponent = installComponent;
+exports.getDefaultToolchain = getDefaultToolchain;
+exports.setDefaultToolchain = setDefaultToolchain;
 exports.getHostTriple = getHostTriple;
 exports.prepareToolchain = prepareToolchain;
 const tslib_1 = __nccwpck_require__(31577);
@@ -45070,6 +45105,7 @@ const child_process_1 = __nccwpck_require__(35317);
 const fs_1 = __nccwpck_require__(79896);
 const promises_1 = __nccwpck_require__(91943);
 const path = tslib_1.__importStar(__nccwpck_require__(16928));
+const process_1 = __nccwpck_require__(932);
 const cache_1 = __nccwpck_require__(26619);
 const cargo_1 = __nccwpck_require__(21253);
 const lib_1 = __nccwpck_require__(71374);
@@ -45104,6 +45140,20 @@ async function installComponent(component, toolchain) {
         args.unshift(`+${toolchain}`);
     }
     await exec.exec('rustup', args);
+}
+// Gets the default Rust toolchain or undefined if not set (or command fails)
+async function getDefaultToolchain() {
+    try {
+        const stdoutBuf = (0, child_process_1.execSync)('rustup show active-toolchain').toString();
+        return stdoutBuf.trim();
+    }
+    catch (err) {
+        return undefined;
+    }
+}
+async function setDefaultToolchain(toolchain) {
+    core.notice(`Setting default toolchain to ${toolchain}`);
+    await exec.exec('rustup', ['default', toolchain]);
 }
 async function getHostTriple() {
     const stdoutBuf = (0, child_process_1.execSync)('rustc -vV').toString();
@@ -45150,7 +45200,11 @@ async function prepareToolchain(startTime, toolchain, additionalComponents = [],
         return hadToInstall;
     };
     await core.group(`Preparing toolchain ${toolchain}: ${(0, lib_1.timeSinceStart)(startTime)}`, async () => {
-        const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
+        let cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
+        if (process_1.platform === 'win32') {
+            // It's faster to install without caching on Windows
+            cachePrefixFinal = undefined;
+        }
         const hostTriple = await getHostTriple();
         const toolchains = await listToolchains();
         const toolchainPath = path.join(cargo_1.Cargo.rustupHome(), 'toolchains', `${toolchain}-${hostTriple}`);
@@ -45183,6 +45237,42 @@ async function prepareToolchain(startTime, toolchain, additionalComponents = [],
             await saveToCache(toolchainPath, cacheKey);
             core.info(`Saved toolchain ${toolchain} to cache key ${cacheKey}`);
         }
+    });
+}
+
+
+/***/ }),
+
+/***/ 75989:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.spawnAsync = spawnAsync;
+const tslib_1 = __nccwpck_require__(31577);
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+const node_child_process_1 = __nccwpck_require__(31421);
+function spawnAsync(cmd, args = [], opts = {
+    stdio: 'inherit',
+}) {
+    return new Promise((resolve, reject) => {
+        core.info(`running: ${cmd} ${args.join(' ')}`);
+        const child = (0, node_child_process_1.spawn)(cmd, args, opts);
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.on('data', (d) => {
+            stdout += d;
+        });
+        child.stderr?.on('data', (d) => {
+            stderr += d;
+        });
+        child.on('error', reject);
+        child.on('close', (code) => {
+            if (code === 0)
+                resolve({ code, stdout, stderr });
+            reject(Object.assign(new Error(`exit ${code}`), { code, stdout, stderr }));
+        });
     });
 }
 
@@ -45435,6 +45525,14 @@ module.exports = require("net");
 
 "use strict";
 module.exports = require("node:buffer");
+
+/***/ }),
+
+/***/ 31421:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:child_process");
 
 /***/ }),
 
@@ -88039,13 +88137,13 @@ var exports = __webpack_exports__;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core_1 = __nccwpck_require__(59999);
-const input_js_1 = __nccwpck_require__(15229);
-const lib_js_1 = __nccwpck_require__(71374);
+const input_1 = __nccwpck_require__(15229);
+const lib_1 = __nccwpck_require__(71374);
 main();
 async function main() {
-    const cfg = (0, input_js_1.loadInput)();
+    const cfg = (0, input_1.loadInput)();
     (0, core_1.info)('Using configuration:' + JSON.stringify(cfg, null, 0));
-    (0, lib_js_1.run)(cfg);
+    (0, lib_1.run)(cfg);
 }
 
 })();
