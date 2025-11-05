@@ -44569,7 +44569,7 @@ class Cargo {
             // On Windows, we have to use powershell because otherwise env vars are not recignized by cargo
             await (0, util_1.spawnAsync)('cargo', args, {
                 ...options,
-                shell: 'powershell.exe',
+                shell: 'bash',
                 stdio: 'inherit',
                 env: process.env,
             });
