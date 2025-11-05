@@ -44571,6 +44571,7 @@ class Cargo {
                 ...options,
                 shell: 'powershell.exe',
                 stdio: 'inherit',
+                env: process.env,
             });
         }
         else {

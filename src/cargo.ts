@@ -173,6 +173,7 @@ export class Cargo {
         ...options,
         shell: 'powershell.exe',
         stdio: 'inherit',
+        env: process.env as any,
       });
     } else {
       await actionexec.exec('cargo', args, {
