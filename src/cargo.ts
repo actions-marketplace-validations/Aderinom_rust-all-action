@@ -165,13 +165,14 @@ export class Cargo {
   // Executes a cargo command with given arguments
   public static async exec(
     args: string[],
-    options?: actionexec.ExecOptions,
+    options?: Omit<actionexec.ExecOptions, 'stdio'>,
   ): Promise<void> {
     if (platform() === 'win32') {
       // On Windows, we have to use powershell because otherwise env vars are not recignized by cargo
       await spawnAsync('cargo', args, {
         ...options,
         shell: 'powershell.exe',
+        stdio: 'inherit',
       });
     } else {
       await actionexec.exec('cargo', args, {

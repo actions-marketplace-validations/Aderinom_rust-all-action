@@ -26,5 +26,5 @@ export declare class Cargo {
      * @param useBinstall Use cargo-binstall if true
      */
     static install(program: string, version?: string, cachePrefix?: string, useBinstall?: boolean): Promise<void>;
-    static exec(args: string[], options?: actionexec.ExecOptions): Promise<void>;
+    static exec(args: string[], options?: Omit<actionexec.ExecOptions, 'stdio'>): Promise<void>;
 }

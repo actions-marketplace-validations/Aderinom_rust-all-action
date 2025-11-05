@@ -44570,6 +44570,7 @@ class Cargo {
             await (0, util_1.spawnAsync)('cargo', args, {
                 ...options,
                 shell: 'powershell.exe',
+                stdio: 'inherit',
             });
         }
         else {
