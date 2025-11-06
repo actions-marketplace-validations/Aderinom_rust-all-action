@@ -44919,16 +44919,6 @@ async function run(cfg) {
     }
     const buildCache = (0, build_cache_js_1.buildCacheStrategy)(cfg.project, cfg.buildCacheStrategy, cfg.buildCacheFallbackBranch);
     const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
-    // Prepare toolchains
-    const toolchains = new Set();
-    if (cfg.toolchain) {
-        toolchains.add(cfg.toolchain);
-    }
-    for (const flow of Object.values(cfg.flow)) {
-        if (flow.toolchain) {
-            toolchains.add(flow.toolchain);
-        }
-    }
     // Set default toolchain to stable to allow rustc -vV calls
     if ((await (0, rustup_js_1.getDefaultToolchain)()) === undefined) {
         // Doesn't matter since toolchain cache on windows is as fast as fresh install
@@ -44940,29 +44930,37 @@ async function run(cfg) {
         // );
         await (0, rustup_js_1.setDefaultToolchain)(cfg.toolchain || 'stable');
     }
-    const installedToolchains = [];
-    // Prepare all required toolchains
-    for (const tc of toolchains) {
-        await (0, rustup_js_1.prepareToolchain)(start, tc, cfg.extraComponents, cacheKey);
-        installedToolchains.push(tc);
-    }
-    const allWorkflows = [
+    const enabledWorkflows = [
         new workflows_js_1.FormatWorkflow(workflowConfig(cfg, 'fmt')),
         new workflows_js_1.ClippyWorkflow(workflowConfig(cfg, 'clippy')),
         new workflows_js_1.ShearWorkflow(workflowConfig(cfg, 'shear')),
         new workflows_js_1.TestWorkflow(workflowConfig(cfg, 'test')),
         new workflows_js_1.DocsWorkflow(workflowConfig(cfg, 'doc')),
         new workflows_js_1.DenyWorkflow(workflowConfig(cfg, 'deny')),
-    ];
-    let runfilter = cfg.run.flatMap((r) => {
-        if (r === 'all-default') {
-            return all_default;
+    ].filter((wf) => workflowFilter(cfg, wf.name));
+    // Prepare toolchains
+    const toolchainsToInstall = new Set();
+    if (cfg.toolchain) {
+        toolchainsToInstall.add(cfg.toolchain);
+    }
+    let needDefaultToolchain = false;
+    for (const flow of enabledWorkflows) {
+        if (flow.config.toolchain) {
+            toolchainsToInstall.add(flow.config.toolchain);
         }
         else {
-            return [r];
+            needDefaultToolchain = true;
         }
-    });
-    const enabledWorkflows = allWorkflows.filter((wf) => runfilter.includes(wf.name));
+    }
+    if (needDefaultToolchain && cfg.toolchain) {
+        toolchainsToInstall.add(cfg.toolchain);
+    }
+    const installedToolchains = [];
+    // Prepare all required toolchains
+    for (const tc of toolchainsToInstall) {
+        await (0, rustup_js_1.prepareToolchain)(start, tc, cfg.extraComponents, cacheKey);
+        installedToolchains.push(tc);
+    }
     const installedTools = [];
     // Installation of required tools for enabled workflows
     await (0, core_1.group)(`Installing tools: ${timeSinceStart(start)}`, async () => {
@@ -45080,6 +45078,17 @@ function timeSinceStart(start) {
         const seconds = ((duration % 60_000) / 1000).toFixed(0).padStart(2, '0');
         return `${minutes}m:${seconds}s`;
     }
+}
+function workflowFilter(cfg, flow) {
+    let runfilter = cfg.run.flatMap((r) => {
+        if (r === 'all-default') {
+            return all_default;
+        }
+        else {
+            return [r];
+        }
+    });
+    return runfilter.includes(flow);
 }
 
 

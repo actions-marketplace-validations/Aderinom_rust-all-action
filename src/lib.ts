@@ -66,17 +66,6 @@ export async function run(cfg: Input): Promise<RunResult> {
 
   const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
 
-  // Prepare toolchains
-  const toolchains = new Set<string>();
-  if (cfg.toolchain) {
-    toolchains.add(cfg.toolchain);
-  }
-  for (const flow of Object.values(cfg.flow)) {
-    if (flow.toolchain) {
-      toolchains.add(flow.toolchain);
-    }
-  }
-
   // Set default toolchain to stable to allow rustc -vV calls
   if ((await getDefaultToolchain()) === undefined) {
     // Doesn't matter since toolchain cache on windows is as fast as fresh install
@@ -90,33 +79,38 @@ export async function run(cfg: Input): Promise<RunResult> {
     await setDefaultToolchain(cfg.toolchain || 'stable');
   }
 
-  const installedToolchains: string[] = [];
-  // Prepare all required toolchains
-  for (const tc of toolchains) {
-    await prepareToolchain(start, tc, cfg.extraComponents, cacheKey);
-    installedToolchains.push(tc);
-  }
-
-  const allWorkflows = [
+  const enabledWorkflows = [
     new FormatWorkflow(workflowConfig(cfg, 'fmt')),
     new ClippyWorkflow(workflowConfig(cfg, 'clippy')),
     new ShearWorkflow(workflowConfig(cfg, 'shear')),
     new TestWorkflow(workflowConfig(cfg, 'test')),
     new DocsWorkflow(workflowConfig(cfg, 'doc')),
     new DenyWorkflow(workflowConfig(cfg, 'deny')),
-  ];
+  ].filter((wf) => workflowFilter(cfg, wf.name));
 
-  let runfilter = cfg.run.flatMap((r) => {
-    if (r === 'all-default') {
-      return all_default;
+  // Prepare toolchains
+  const toolchainsToInstall = new Set<string>();
+  if (cfg.toolchain) {
+    toolchainsToInstall.add(cfg.toolchain);
+  }
+  let needDefaultToolchain = false;
+  for (const flow of enabledWorkflows) {
+    if (flow.config.toolchain) {
+      toolchainsToInstall.add(flow.config.toolchain);
     } else {
-      return [r];
+      needDefaultToolchain = true;
     }
-  });
+  }
+  if (needDefaultToolchain && cfg.toolchain) {
+    toolchainsToInstall.add(cfg.toolchain);
+  }
 
-  const enabledWorkflows = allWorkflows.filter((wf) =>
-    runfilter.includes(wf.name),
-  );
+  const installedToolchains: string[] = [];
+  // Prepare all required toolchains
+  for (const tc of toolchainsToInstall) {
+    await prepareToolchain(start, tc, cfg.extraComponents, cacheKey);
+    installedToolchains.push(tc);
+  }
 
   const installedTools: [string, string][] = [];
   // Installation of required tools for enabled workflows
@@ -262,4 +256,16 @@ export function timeSinceStart(start: number): string {
     const seconds = ((duration % 60_000) / 1000).toFixed(0).padStart(2, '0');
     return `${minutes}m:${seconds}s`;
   }
+}
+
+function workflowFilter(cfg: Input, flow: string): boolean {
+  let runfilter = cfg.run.flatMap((r) => {
+    if (r === 'all-default') {
+      return all_default;
+    } else {
+      return [r];
+    }
+  });
+
+  return runfilter.includes(flow);
 }
