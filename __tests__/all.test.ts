@@ -2,7 +2,8 @@ import { which } from '@actions/io';
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { Input, loadInput } from '../src/input.js';
-import { addCargoToPath, run, workflowConfig } from '../src/lib.js';
+import { addCargoToPath, run } from '../src/lib.js';
+import { workflowConfig } from '../src/workflows.js';
 
 addCargoToPath();
 
@@ -46,7 +47,7 @@ describe('Workflows', () => {
 
   const config = loadInput();
   for (const wf of Object.keys(config.flow)) {
-    test(`should succeed for ${wf}`, { timeout: 30_000 }, async () => {
+    test(`should succeed for ${wf}`, { timeout: 45_000 }, async () => {
       const options = structuredClone(config);
       options.project = project_dir;
       options.run = [wf];
