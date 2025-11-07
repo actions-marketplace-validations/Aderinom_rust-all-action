@@ -2,7 +2,7 @@ import { info, warning } from '@actions/core';
 import { createHash } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { Cargo } from '../rust/cargo';
-import { restoreFromCache, saveToCache } from './cache-impl';
+import { deleteCacheEntry, restoreFromCache, saveToCache } from './cache-impl';
 
 export interface BuildCacheStrategy {
   restore(): Promise<void>;
@@ -83,6 +83,11 @@ export class GithubBuildCacheStrategy implements BuildCacheStrategy {
     ) {
       info(`Build cache dependencies unchanged, skipping save.`);
       return;
+    }
+
+    // Remove the fallback cache to update it
+    if (this.restoredFrom && currentBranch === this.fallbackBranch) {
+      deleteCacheEntry(this.cacheKey);
     }
 
     await GithubBuildCacheStrategy.saveBuildCache(
