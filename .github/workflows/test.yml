@@ -69,6 +69,9 @@ jobs:
 
       - name: Run Self as Action
         uses: ./ # Uses the action in the current repo
+        env:
+          # Required for updating the fallback cache
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           project: './__tests__/test-cargo-repo'
           run: 'test,clippy,fmt,doc,shear,deny'
