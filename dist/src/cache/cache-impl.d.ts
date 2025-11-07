@@ -1,5 +1,5 @@
 export declare function restoreFromCache(cachePath: string[], key: string, restoreKeys?: string[]): Promise<string | undefined>;
-export declare function saveToCache(cachePath: string[], key: string): Promise<void>;
+export declare function saveToCache(cachePath: string[], key: string): Promise<boolean>;
 /**
  * Generates a cache key
  *

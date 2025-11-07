@@ -44225,10 +44225,12 @@ const crypto_1 = __nccwpck_require__(76982);
 const fs_1 = __nccwpck_require__(79896);
 const cargo_1 = __nccwpck_require__(38472);
 const cache_impl_1 = __nccwpck_require__(36609);
-function buildCacheStrategy(projectDir, strategy, toolchains, fallbackBranch) {
+function buildCacheStrategy(projectDir, strategy, toolchains, fallbackBranch, cachePrefix) {
+    if (!cachePrefix)
+        return;
     switch (strategy) {
         case 'github':
-            return new GithubBuildCacheStrategy(projectDir, toolchains, fallbackBranch);
+            return new GithubBuildCacheStrategy(cachePrefix, projectDir, toolchains, fallbackBranch);
         case 'none':
             return undefined;
         default:
@@ -44242,11 +44244,11 @@ class GithubBuildCacheStrategy {
     projectDir;
     fallbackBranch;
     restoredFrom;
-    constructor(projectDir, toolchains, fallbackBranch) {
+    constructor(cachePrefix, projectDir, toolchains, fallbackBranch) {
         this.projectDir = projectDir;
         this.fallbackBranch = fallbackBranch;
-        this.cacheKey = GithubBuildCacheStrategy.buildCacheKey(projectDir, toolchains, fallbackBranch);
-        this.fallbackKey = GithubBuildCacheStrategy.buildFallbackCacheKey(projectDir, toolchains, fallbackBranch);
+        this.cacheKey = GithubBuildCacheStrategy.buildCacheKey(cachePrefix, projectDir, toolchains, fallbackBranch);
+        this.fallbackKey = GithubBuildCacheStrategy.buildFallbackCacheKey(cachePrefix, projectDir, toolchains, fallbackBranch);
     }
     async restore() {
         this.restoredFrom = await GithubBuildCacheStrategy.restoreBuildCache(this.projectDir, this.cacheKey, this.fallbackKey);
@@ -44284,7 +44286,7 @@ class GithubBuildCacheStrategy {
         await (0, cache_impl_1.saveToCache)([targetDir], cacheKey);
         (0, core_1.info)(`Saved build cache with key: ${cacheKey}`);
     }
-    static buildCacheKey(projectDir, toolchains, fallbackBranch) {
+    static buildCacheKey(cachePrefix, projectDir, toolchains, fallbackBranch) {
         const lockFile = cargo_1.Cargo.cargoLock(projectDir);
         let lockHashOrBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action';
         if (fallbackBranch === lockHashOrBranch) {
@@ -44309,16 +44311,16 @@ class GithubBuildCacheStrategy {
         normalizedProjectDir = normalizedProjectDir.replace(/[\\/]+/g, '-');
         const platform = process.platform;
         const arch = process.arch;
-        return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${normalizedProjectDir}-${lockHashOrBranch}`;
+        return `${cachePrefix}-build-${platform}-${arch}-${toolchainHash}-${normalizedProjectDir}-${lockHashOrBranch}`;
     }
-    static buildFallbackCacheKey(projectDir, toolchains, fallbackBranch) {
+    static buildFallbackCacheKey(cachePrefix, projectDir, toolchains, fallbackBranch) {
         const platform = process.platform;
         const arch = process.arch;
         const toolchainHash = (0, crypto_1.createHash)('sha256')
             .update(toolchains.sort().join(','))
             .digest('hex')
             .slice(0, 8);
-        return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${projectDir}-${fallbackBranch}`;
+        return `${cachePrefix}-build-${platform}-${arch}-${toolchainHash}-${projectDir}-${fallbackBranch}`;
     }
 }
 exports.GithubBuildCacheStrategy = GithubBuildCacheStrategy;
@@ -44359,18 +44361,17 @@ async function saveToCache(cachePath, key) {
     }
     if (!anyExists) {
         core.warning(`No paths from ${cachePath} exist, skip caching for key ${key}`);
-        return;
+        return false;
     }
     try {
         await cache.saveCache(cachePath, key);
         core.info(`Cached key ${key}`);
     }
     catch (err) {
-        if (err.name === cache.ValidationError.name)
-            throw err;
-        if (err.name === cache.ReserveCacheError.name)
-            core.warning(`Caching failed for ${key}: ${err.message}`);
+        core.error(`Caching failed for ${key}: ${err.message}`);
+        return false;
     }
+    return true;
 }
 /**
  * Generates a cache key
@@ -44717,7 +44718,7 @@ async function run(cfg) {
         }
         cfg.toolchain = tomlChannel;
     }
-    const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
+    const cachePrefix = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
     // Ensure default toolchain is set to allow rustc -vV calls
     if ((await (0, rustup_js_1.getGlobalDefaultToolchain)()) === undefined) {
         await (0, rustup_js_1.setDefaultToolchain)(cfg.toolchain || 'stable');
@@ -44731,8 +44732,8 @@ async function run(cfg) {
         new workflows_js_1.DenyWorkflow((0, workflows_js_1.workflowConfig)(cfg, 'deny')),
     ].filter((wf) => workflowFilter(cfg, wf.name));
     // Prepare toolchains
-    const installedToolchains = await installToolchains(cfg, enabledWorkflows, start, cacheKey);
-    const installedTools = await installTools(start, enabledWorkflows, cacheKey, cfg);
+    const installedToolchains = await installToolchains(cfg, enabledWorkflows, start, cachePrefix);
+    const installedTools = await installTools(start, enabledWorkflows, cachePrefix, cfg);
     // If installOnly is set, skip workflow execution
     if (cfg.installOnly) {
         (0, core_1.info)('Install-only mode enabled, skipping workflow execution.');
@@ -44743,7 +44744,7 @@ async function run(cfg) {
             succeeded: true,
         };
     }
-    const buildCache = (0, build_cache_js_1.buildCacheStrategy)(cfg.project, cfg.buildCacheStrategy, installedToolchains, cfg.buildCacheFallbackBranch);
+    const buildCache = (0, build_cache_js_1.buildCacheStrategy)(cfg.project, cfg.buildCacheStrategy, installedToolchains, cfg.buildCacheFallbackBranch, cachePrefix);
     if (buildCache) {
         await (0, core_1.group)(`Restoring build cache: ${timeSinceStart(start)}`, async () => {
             await buildCache.restore();

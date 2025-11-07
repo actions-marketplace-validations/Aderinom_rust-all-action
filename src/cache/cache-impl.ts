@@ -18,7 +18,7 @@ export async function restoreFromCache(
 export async function saveToCache(
   cachePath: string[],
   key: string,
-): Promise<void> {
+): Promise<boolean> {
   let anyExists = false;
   for (const path of cachePath) {
     if (!existsSync(path)) {
@@ -32,17 +32,18 @@ export async function saveToCache(
     core.warning(
       `No paths from ${cachePath} exist, skip caching for key ${key}`,
     );
-    return;
+    return false;
   }
 
   try {
     await cache.saveCache(cachePath, key);
     core.info(`Cached key ${key}`);
   } catch (err: any) {
-    if (err.name === cache.ValidationError.name) throw err;
-    if (err.name === cache.ReserveCacheError.name)
-      core.warning(`Caching failed for ${key}: ${err.message}`);
+    core.error(`Caching failed for ${key}: ${err.message}`);
+    return false;
   }
+
+  return true;
 }
 
 /**

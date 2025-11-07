@@ -14,10 +14,14 @@ export function buildCacheStrategy(
   strategy: string,
   toolchains: string[],
   fallbackBranch: string,
+  cachePrefix?: string,
 ): BuildCacheStrategy | undefined {
+  if (!cachePrefix) return;
+
   switch (strategy) {
     case 'github':
       return new GithubBuildCacheStrategy(
+        cachePrefix,
         projectDir,
         toolchains,
         fallbackBranch,
@@ -39,6 +43,7 @@ export class GithubBuildCacheStrategy implements BuildCacheStrategy {
   private restoredFrom: string | undefined;
 
   constructor(
+    cachePrefix: string,
     projectDir: string,
     toolchains: string[],
     fallbackBranch: string,
@@ -46,11 +51,13 @@ export class GithubBuildCacheStrategy implements BuildCacheStrategy {
     this.projectDir = projectDir;
     this.fallbackBranch = fallbackBranch;
     this.cacheKey = GithubBuildCacheStrategy.buildCacheKey(
+      cachePrefix,
       projectDir,
       toolchains,
       fallbackBranch,
     );
     this.fallbackKey = GithubBuildCacheStrategy.buildFallbackCacheKey(
+      cachePrefix,
       projectDir,
       toolchains,
       fallbackBranch,
@@ -121,6 +128,7 @@ export class GithubBuildCacheStrategy implements BuildCacheStrategy {
   }
 
   static buildCacheKey(
+    cachePrefix: string,
     projectDir: string,
     toolchains: string[],
     fallbackBranch: string,
@@ -153,10 +161,11 @@ export class GithubBuildCacheStrategy implements BuildCacheStrategy {
     const platform = process.platform;
     const arch = process.arch;
 
-    return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${normalizedProjectDir}-${lockHashOrBranch}`;
+    return `${cachePrefix}-build-${platform}-${arch}-${toolchainHash}-${normalizedProjectDir}-${lockHashOrBranch}`;
   }
 
   static buildFallbackCacheKey(
+    cachePrefix: string,
     projectDir: string,
     toolchains: string[],
     fallbackBranch: string,
@@ -168,6 +177,6 @@ export class GithubBuildCacheStrategy implements BuildCacheStrategy {
       .digest('hex')
       .slice(0, 8);
 
-    return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${projectDir}-${fallbackBranch}`;
+    return `${cachePrefix}-build-${platform}-${arch}-${toolchainHash}-${projectDir}-${fallbackBranch}`;
   }
 }

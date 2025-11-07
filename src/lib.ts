@@ -59,7 +59,7 @@ export async function run(cfg: Input): Promise<RunResult> {
     cfg.toolchain = tomlChannel;
   }
 
-  const cacheKey = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
+  const cachePrefix = cfg.cacheKey === 'no-cache' ? undefined : 'rax-cache';
 
   // Ensure default toolchain is set to allow rustc -vV calls
   if ((await getGlobalDefaultToolchain()) === undefined) {
@@ -80,13 +80,13 @@ export async function run(cfg: Input): Promise<RunResult> {
     cfg,
     enabledWorkflows,
     start,
-    cacheKey,
+    cachePrefix,
   );
 
   const installedTools: [string, string][] = await installTools(
     start,
     enabledWorkflows,
-    cacheKey,
+    cachePrefix,
     cfg,
   );
 
@@ -106,6 +106,7 @@ export async function run(cfg: Input): Promise<RunResult> {
     cfg.buildCacheStrategy,
     installedToolchains,
     cfg.buildCacheFallbackBranch,
+    cachePrefix,
   );
 
   if (buildCache) {
