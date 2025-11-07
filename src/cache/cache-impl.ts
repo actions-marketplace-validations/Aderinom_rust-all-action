@@ -64,7 +64,7 @@ export function generateCacheKey(
   return `${prefix}${platform}${ver}${postfix}`;
 }
 
-export function deleteCacheEntry(key: string): void {
+export async function deleteCacheEntry(key: string) {
   const token =
     process.env.GITHUB_TOKEN ||
     process.env.GH_TOKEN ||
@@ -83,7 +83,7 @@ export function deleteCacheEntry(key: string): void {
 
   const url = `https://api.github.com/repos/${owner}/${repoName}/actions/caches?key=${encodeURIComponent(key)}`;
 
-  fetch(url, {
+  await fetch(url, {
     method: 'DELETE',
     headers: {
       Accept: 'application/vnd.github+json',

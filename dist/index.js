@@ -45672,9 +45672,15 @@ class GithubBuildCacheStrategy {
             (0, core_1.info)(`Build cache dependencies unchanged, skipping save.`);
             return;
         }
-        // Remove the fallback cache to update it
+        // Remove the fallback cache to update
         if (this.restoredFrom && currentBranch === this.fallbackBranch) {
-            (0, cache_impl_1.deleteCacheEntry)(this.cacheKey);
+            try {
+                await (0, cache_impl_1.deleteCacheEntry)(this.cacheKey);
+            }
+            catch (error) {
+                error(`Failed to delete build cache for update`);
+                return;
+            }
         }
         await GithubBuildCacheStrategy.saveBuildCache(this.projectDir, this.cacheKey);
     }
@@ -45800,7 +45806,7 @@ function generateCacheKey(prefix, version, usePlatform = true, postFixes = []) {
     const postfix = postFixes.length > 0 ? `-${postFixes.join('-')}` : '';
     return `${prefix}${platform}${ver}${postfix}`;
 }
-function deleteCacheEntry(key) {
+async function deleteCacheEntry(key) {
     const token = process.env.GITHUB_TOKEN ||
         process.env.GH_TOKEN ||
         process.env.ACTIONS_RUNTIME_TOKEN;
@@ -45815,7 +45821,7 @@ function deleteCacheEntry(key) {
     }
     const [owner, repoName] = repo.split('/');
     const url = `https://api.github.com/repos/${owner}/${repoName}/actions/caches?key=${encodeURIComponent(key)}`;
-    fetch(url, {
+    await fetch(url, {
         method: 'DELETE',
         headers: {
             Accept: 'application/vnd.github+json',

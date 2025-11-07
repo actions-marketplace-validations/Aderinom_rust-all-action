@@ -7,4 +7,4 @@ export declare function saveToCache(cachePath: string[], key: string): Promise<b
  *
  */
 export declare function generateCacheKey(prefix: string, version?: string, usePlatform?: boolean, postFixes?: string[]): string;
-export declare function deleteCacheEntry(key: string): void;
+export declare function deleteCacheEntry(key: string): Promise<void>;
