@@ -45807,9 +45807,7 @@ function generateCacheKey(prefix, version, usePlatform = true, postFixes = []) {
     return `${prefix}${platform}${ver}${postfix}`;
 }
 async function deleteCacheEntry(key) {
-    const token = process.env.GITHUB_TOKEN ||
-        process.env.GH_TOKEN ||
-        process.env.ACTIONS_RUNTIME_TOKEN;
+    const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
     if (!token) {
         core.warning('No GitHub token; cannot delete cache entry');
         return;
@@ -45821,15 +45819,16 @@ async function deleteCacheEntry(key) {
     }
     const [owner, repoName] = repo.split('/');
     const url = `https://api.github.com/repos/${owner}/${repoName}/actions/caches?key=${encodeURIComponent(key)}`;
-    await fetch(url, {
-        method: 'DELETE',
-        headers: {
-            Accept: 'application/vnd.github+json',
-            Authorization: `Bearer ${token}`,
-            'X-GitHub-Api-Version': '2022-11-28',
-        },
-    })
-        .then(async (res) => {
+    try {
+        core.info(`Deleting cache entry for key ${key} at ${url}`);
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: `Bearer ${token}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+            },
+        });
         if (res.ok) {
             core.info(`Deleted cache entry for key ${key}`);
         }
@@ -45837,10 +45836,10 @@ async function deleteCacheEntry(key) {
             const body = await res.text();
             core.warning(`Failed to delete cache entry ${key}: ${res.status} ${body}`);
         }
-    })
-        .catch((err) => {
-        core.error(`Error deleting cache entry ${key}: ${err.message}`);
-    });
+    }
+    catch (error) {
+        core.error(`Error deleting cache entry ${key}: ${error.message}`);
+    }
 }
 
 

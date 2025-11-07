@@ -65,10 +65,7 @@ export function generateCacheKey(
 }
 
 export async function deleteCacheEntry(key: string) {
-  const token =
-    process.env.GITHUB_TOKEN ||
-    process.env.GH_TOKEN ||
-    process.env.ACTIONS_RUNTIME_TOKEN;
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   if (!token) {
     core.warning('No GitHub token; cannot delete cache entry');
     return;
@@ -82,26 +79,26 @@ export async function deleteCacheEntry(key: string) {
   const [owner, repoName] = repo.split('/');
 
   const url = `https://api.github.com/repos/${owner}/${repoName}/actions/caches?key=${encodeURIComponent(key)}`;
-
-  await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  })
-    .then(async (res) => {
-      if (res.ok) {
-        core.info(`Deleted cache entry for key ${key}`);
-      } else {
-        const body = await res.text();
-        core.warning(
-          `Failed to delete cache entry ${key}: ${res.status} ${body}`,
-        );
-      }
-    })
-    .catch((err) => {
-      core.error(`Error deleting cache entry ${key}: ${err.message}`);
+  try {
+    core.info(`Deleting cache entry for key ${key} at ${url}`);
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
     });
+
+    if (res.ok) {
+      core.info(`Deleted cache entry for key ${key}`);
+    } else {
+      const body = await res.text();
+      core.warning(
+        `Failed to delete cache entry ${key}: ${res.status} ${body}`,
+      );
+    }
+  } catch (error) {
+    core.error(`Error deleting cache entry ${key}: ${error.message}`);
+  }
 }
