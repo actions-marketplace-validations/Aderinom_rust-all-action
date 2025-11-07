@@ -6,13 +6,13 @@ export async function restoreFromCache(
   cachePath: string[],
   key: string,
   restoreKeys: string[] = [],
-): Promise<boolean> {
+): Promise<string | undefined> {
   const restored = await cache.restoreCache(cachePath, key, restoreKeys);
   if (restored) {
     core.info(`Using cached ${key} from restored through key: ${restored}`);
-    return true;
+    return restored;
   }
-  return false;
+  return restored;
 }
 
 export async function saveToCache(

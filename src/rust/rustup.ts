@@ -6,9 +6,9 @@ import { existsSync } from 'fs';
 import { readdir } from 'fs/promises';
 import * as path from 'path';
 import { platform } from 'process';
-import { generateCacheKey, restoreFromCache } from './cache';
+import { generateCacheKey, restoreFromCache } from '../cache/cache-impl';
+import { timeSinceStart } from '../lib';
 import { Cargo } from './cargo';
-import { timeSinceStart } from './lib';
 
 // Lists installed Rust toolchains
 export async function listToolchains(): Promise<string[]> {

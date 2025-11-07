@@ -6,7 +6,7 @@ export interface SpawnResult {
   stdout: string;
   stderr: string;
 }
-
+/// Spawns a command asynchronously, returning a promise that resolves
 export function spawnAsync(
   cmd: string,
   args: string[] = [],

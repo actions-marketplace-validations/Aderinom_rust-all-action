@@ -8,9 +8,13 @@ import { homedir, platform } from 'os';
 import path from 'path';
 import { cwd } from 'process';
 import * as toml from 'toml';
+import {
+  generateCacheKey,
+  restoreFromCache,
+  saveToCache,
+} from '../cache/cache-impl';
+import { spawnAsync } from '../util';
 import { ensureBinstall } from './binstall';
-import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
-import { spawnAsync } from './util';
 
 export class Cargo {
   /**

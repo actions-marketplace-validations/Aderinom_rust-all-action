@@ -44212,174 +44212,121 @@ module.exports = {
 
 /***/ }),
 
-/***/ 37356:
+/***/ 90067:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ensureBinstall = ensureBinstall;
-const tslib_1 = __nccwpck_require__(31577);
-const core = tslib_1.__importStar(__nccwpck_require__(59999));
-const io = tslib_1.__importStar(__nccwpck_require__(73357));
-const child_process_1 = __nccwpck_require__(35317);
-const cache_1 = __nccwpck_require__(26619);
-const cargo_1 = __nccwpck_require__(21253);
-// Ensures that cargo-binstall is installed, using caching if specified
-// otherwise installs it directly
-async function ensureBinstall(cachePrefix) {
-    const binstallPath = await io.which('binstall', false);
-    if (binstallPath) {
-        core.debug('binstall already installed');
-        return;
-    }
-    const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
-    const binDir = cargo_1.Cargo.binDir();
-    // try get from cache first
-    const cacheKey = (0, cache_1.generateCacheKey)('binstall', 'any', true);
-    if (cachePrefixFinal && (await (0, cache_1.restoreFromCache)([binDir], cacheKey))) {
-        core.info('Restored binstall from cache');
-        return;
-    }
-    await core.group('Installing binstall', async () => {
-        if (process.platform === 'win32') {
-            await installBinstallWindows();
-        }
-        else if (process.platform === 'linux' || process.platform === 'darwin') {
-            await installBinstallLinuxMac();
-        }
-        else {
-            cargo_1.Cargo.install('cargo-binstall', 'latest', undefined, false);
-        }
-        core.info('Installed cargo-binstall');
-        // save to cache
-        if (cachePrefixFinal) {
-            await (0, cache_1.saveToCache)([binDir], cacheKey);
-        }
-    });
-}
-// Installs cargo-binstall on Linux or macOS
-async function installBinstallLinuxMac() {
-    (0, child_process_1.execSync)(`curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash`);
-}
-// Installs cargo-binstall on Windows
-async function installBinstallWindows() {
-    (0, child_process_1.execSync)(`Set-ExecutionPolicy Unrestricted -Scope Process; iex (iwr "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.ps1").Content`, { shell: 'powershell.exe' });
-}
-
-
-/***/ }),
-
-/***/ 84954:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.restoreBuildCache = restoreBuildCache;
-exports.saveBuildCache = saveBuildCache;
+exports.GithubBuildCacheStrategy = void 0;
 exports.buildCacheStrategy = buildCacheStrategy;
 const core_1 = __nccwpck_require__(59999);
 const crypto_1 = __nccwpck_require__(76982);
 const fs_1 = __nccwpck_require__(79896);
-const cache_1 = __nccwpck_require__(26619);
-const cargo_1 = __nccwpck_require__(21253);
-// Optimized for keeping dependencies cached between builds
-// Uses a fallbackBranch to restore from
-// Then saves cache based on Cargo.lock hash or branch name
-//
-// Advantages:
-// - We most of the time restore all dependencies from cache
-// - We have one cache entry per updated lock file
-// Disadvantages:
-// - Every branch will have to rebuild changes to internal dependencies
-function buildCacheKey(projectDir, toolchains, fallbackBranch) {
-    const lockFile = cargo_1.Cargo.cargoLock(projectDir);
-    let lockHashOrBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action'; //branch
-    if (fallbackBranch == lockHashOrBranch) {
-        // This branch is the fallback branch, we don't use the lock file hash
-    }
-    else if ((0, fs_1.existsSync)(lockFile)) {
-        const lockContent = (0, fs_1.readFileSync)(lockFile, 'utf8');
-        const hash = (0, crypto_1.createHash)('sha256').update(lockContent).digest('hex');
-        lockHashOrBranch = hash.slice(0, 20); // use first 20 chars of hash
-    }
-    const toolchainHash = (0, crypto_1.createHash)('sha256')
-        .update(toolchains.sort().join(','))
-        .digest('hex')
-        .slice(0, 8);
-    // Normalize project dir to be cache key friendly (e.g. ./my-project -> my-project, /my-project -> my-project, my-project/ -> my-project)
-    let normalizedProjectDir = projectDir.trim();
-    // Remove leading ./ or / (including repeated ones) and trailing slashes/backslashes
-    normalizedProjectDir = normalizedProjectDir
-        .replace(/^[./\\]+/, '')
-        .replace(/[./\\]+$/, '')
-        .replace(/^[/\\]+/, '');
-    // If empty (e.g. '.' or './'), fallback to current directory name
-    if (!normalizedProjectDir) {
-        normalizedProjectDir = 'root';
-    }
-    // Replace remaining path separators with dashes to avoid nested path issues
-    normalizedProjectDir = normalizedProjectDir.replace(/[\\/]+/g, '-');
-    const platform = process.platform;
-    const arch = process.arch;
-    return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${normalizedProjectDir}-${lockHashOrBranch}`;
-}
-function buildFallbackCacheKey(projectDir, toolchains, fallbackBranch) {
-    const platform = process.platform;
-    const arch = process.arch;
-    const toolchainHash = (0, crypto_1.createHash)('sha256')
-        .update(toolchains.sort().join(','))
-        .digest('hex')
-        .slice(0, 8);
-    return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${projectDir}-${fallbackBranch}`;
-}
-// Restores target folders from cache
-async function restoreBuildCache(projectDir, toolchains, fallbackBranch) {
-    const targetDir = cargo_1.Cargo.targetDir(projectDir);
-    const cacheKey = buildCacheKey(projectDir, toolchains, fallbackBranch);
-    const fallbackKey = buildFallbackCacheKey(projectDir, toolchains, fallbackBranch);
-    const restoredKey = await (0, cache_1.restoreFromCache)([targetDir], cacheKey, [
-        fallbackKey,
-    ]);
-    if (restoredKey) {
-        console.info(`Restored build cache from key: ${restoredKey}`);
-    }
-    else {
-        console.info(`No build cache found for keys: ${cacheKey}, ${fallbackKey}`);
-    }
-}
-async function saveBuildCache(projectDir, toolchains, fallbackBranch) {
-    const targetDir = cargo_1.Cargo.targetDir(projectDir);
-    const cacheKey = buildCacheKey(projectDir, toolchains, fallbackBranch);
-    // TODO: Need to prune the target folder to reduce size
-    if (!(0, fs_1.existsSync)(targetDir)) {
-        (0, core_1.warning)(`Target directory does not exist: ${targetDir}, skipping cache save.`);
-        return;
-    }
-    await (0, cache_1.saveToCache)([targetDir], cacheKey);
-    (0, core_1.info)(`Saved build cache with key: ${cacheKey}`);
-}
+const cargo_1 = __nccwpck_require__(38472);
+const cache_impl_1 = __nccwpck_require__(36609);
 function buildCacheStrategy(projectDir, strategy, toolchains, fallbackBranch) {
     switch (strategy) {
         case 'github':
-            return {
-                restore: async () => {
-                    await restoreBuildCache(projectDir, toolchains, fallbackBranch);
-                },
-                save: async () => {
-                    await saveBuildCache(projectDir, toolchains, fallbackBranch);
-                },
-            };
+            return new GithubBuildCacheStrategy(projectDir, toolchains, fallbackBranch);
+        case 'none':
+            return undefined;
         default:
+            (0, core_1.warning)(`Unknown build cache strategy: ${strategy}`);
             return undefined;
     }
 }
+class GithubBuildCacheStrategy {
+    cacheKey;
+    fallbackKey;
+    projectDir;
+    fallbackBranch;
+    restoredFrom;
+    constructor(projectDir, toolchains, fallbackBranch) {
+        this.projectDir = projectDir;
+        this.fallbackBranch = fallbackBranch;
+        this.cacheKey = GithubBuildCacheStrategy.buildCacheKey(projectDir, toolchains, fallbackBranch);
+        this.fallbackKey = GithubBuildCacheStrategy.buildFallbackCacheKey(projectDir, toolchains, fallbackBranch);
+    }
+    async restore() {
+        this.restoredFrom = await GithubBuildCacheStrategy.restoreBuildCache(this.projectDir, this.cacheKey, this.fallbackKey);
+    }
+    async save() {
+        const currentBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action';
+        // Always save if this is the fallback branch
+        // Skip save if no dependencies changed
+        if (currentBranch !== this.fallbackBranch &&
+            this.restoredFrom === this.cacheKey) {
+            (0, core_1.info)(`Build cache dependencies unchanged, skipping save.`);
+            return;
+        }
+        await GithubBuildCacheStrategy.saveBuildCache(this.projectDir, this.cacheKey);
+    }
+    static async restoreBuildCache(projectDir, cacheKey, fallbackKey) {
+        const targetDir = cargo_1.Cargo.targetDir(projectDir);
+        const restoredKey = await (0, cache_impl_1.restoreFromCache)([targetDir], cacheKey, [
+            fallbackKey,
+        ]);
+        if (restoredKey) {
+            console.info(`Restored build cache from key: ${restoredKey}`);
+        }
+        else {
+            console.info(`No build cache found for keys: ${cacheKey}, ${fallbackKey}`);
+        }
+        return restoredKey;
+    }
+    static async saveBuildCache(projectDir, cacheKey) {
+        const targetDir = cargo_1.Cargo.targetDir(projectDir);
+        if (!(0, fs_1.existsSync)(targetDir)) {
+            (0, core_1.warning)(`Target directory does not exist: ${targetDir}, skipping cache save.`);
+            return;
+        }
+        await (0, cache_impl_1.saveToCache)([targetDir], cacheKey);
+        (0, core_1.info)(`Saved build cache with key: ${cacheKey}`);
+    }
+    static buildCacheKey(projectDir, toolchains, fallbackBranch) {
+        const lockFile = cargo_1.Cargo.cargoLock(projectDir);
+        let lockHashOrBranch = process.env.GITHUB_REF_NAME || 'not-in-gh-action';
+        if (fallbackBranch === lockHashOrBranch) {
+            // Use branch name
+        }
+        else if ((0, fs_1.existsSync)(lockFile)) {
+            const lockContent = (0, fs_1.readFileSync)(lockFile, 'utf8');
+            const hash = (0, crypto_1.createHash)('sha256').update(lockContent).digest('hex');
+            lockHashOrBranch = hash.slice(0, 20);
+        }
+        const toolchainHash = (0, crypto_1.createHash)('sha256')
+            .update(toolchains.sort().join(','))
+            .digest('hex')
+            .slice(0, 8);
+        let normalizedProjectDir = projectDir
+            .trim()
+            .replace(/^[./\\]+/, '')
+            .replace(/[./\\]+$/, '')
+            .replace(/^[/\\]+/, '');
+        if (!normalizedProjectDir)
+            normalizedProjectDir = 'root';
+        normalizedProjectDir = normalizedProjectDir.replace(/[\\/]+/g, '-');
+        const platform = process.platform;
+        const arch = process.arch;
+        return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${normalizedProjectDir}-${lockHashOrBranch}`;
+    }
+    static buildFallbackCacheKey(projectDir, toolchains, fallbackBranch) {
+        const platform = process.platform;
+        const arch = process.arch;
+        const toolchainHash = (0, crypto_1.createHash)('sha256')
+            .update(toolchains.sort().join(','))
+            .digest('hex')
+            .slice(0, 8);
+        return `rax-cache-build-${platform}-${arch}-${toolchainHash}-${projectDir}-${fallbackBranch}`;
+    }
+}
+exports.GithubBuildCacheStrategy = GithubBuildCacheStrategy;
 
 
 /***/ }),
 
-/***/ 26619:
+/***/ 36609:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -44396,9 +44343,9 @@ async function restoreFromCache(cachePath, key, restoreKeys = []) {
     const restored = await cache.restoreCache(cachePath, key, restoreKeys);
     if (restored) {
         core.info(`Using cached ${key} from restored through key: ${restored}`);
-        return true;
+        return restored;
     }
-    return false;
+    return restored;
 }
 async function saveToCache(cachePath, key) {
     let anyExists = false;
@@ -44437,171 +44384,6 @@ function generateCacheKey(prefix, version, usePlatform = true, postFixes = []) {
     const postfix = postFixes.length > 0 ? `-${postFixes.join('-')}` : '';
     return `${prefix}${platform}${ver}${postfix}`;
 }
-
-
-/***/ }),
-
-/***/ 21253:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Cargo = void 0;
-const tslib_1 = __nccwpck_require__(31577);
-const core = tslib_1.__importStar(__nccwpck_require__(59999));
-const actionexec = tslib_1.__importStar(__nccwpck_require__(58872));
-const http = tslib_1.__importStar(__nccwpck_require__(80787));
-const io = tslib_1.__importStar(__nccwpck_require__(73357));
-const console_1 = __nccwpck_require__(64236);
-const fs_1 = __nccwpck_require__(79896);
-const os_1 = __nccwpck_require__(70857);
-const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
-const process_1 = __nccwpck_require__(932);
-const toml = tslib_1.__importStar(__nccwpck_require__(19435));
-const binstall_1 = __nccwpck_require__(37356);
-const cache_1 = __nccwpck_require__(26619);
-const util_1 = __nccwpck_require__(75989);
-class Cargo {
-    /**
-     * @returns Path to cargo target directory
-     */
-    static targetDir(projectDir) {
-        return process.env.CARGO_TARGET_DIR || path_1.default.join(projectDir, 'target');
-    }
-    /**
-     * @returns Path to cargo binary directory
-     */
-    static binDir() {
-        const cargoHome = Cargo.cargoHome();
-        return path_1.default.join(cargoHome, 'bin');
-    }
-    static cargoHome() {
-        return process.env.CARGO_HOME || path_1.default.join((0, os_1.homedir)() || '', '.cargo');
-    }
-    /**
-     * @returns Path to rustup home directory
-     */
-    static rustupHome() {
-        return process.env.RUSTUP_HOME || path_1.default.join((0, os_1.homedir)() || '', '.rustup');
-    }
-    static cargoLock(projectDir) {
-        return path_1.default.join(projectDir, 'Cargo.lock');
-    }
-    static async rustToolchainTomlChannel(dir = (0, process_1.cwd)()) {
-        if (!(0, fs_1.existsSync)(path_1.default.join(dir, 'rust-toolchain.toml'))) {
-            core.debug('No rust-toolchain.toml found');
-            return;
-        }
-        let tomlContent;
-        try {
-            const toolchainToml = path_1.default.join(dir, 'rust-toolchain.toml');
-            const content = await (0, fs_1.readFileSync)(toolchainToml, 'utf8');
-            tomlContent = toml.parse(content);
-        }
-        catch (error) {
-            (0, console_1.warn)('Failed to parse rust-toolchain.toml.');
-            return;
-        }
-        let channel = tomlContent?.toolchain?.channel;
-        if (typeof channel !== 'string') {
-            return;
-        }
-        // Remove any suffixes like "-2024-01-01" from the channel
-        return channel;
-    }
-    /**
-     * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
-     * Optionally restores/saves to cache.
-     *
-     * @param program Program name (e.g. "cargo-nextest")
-     * @param version Version or "latest"
-     * @param cachePrefix Cache key prefix (omit or "no-cache" to skip caching)
-     * @param restoreKeys Optional list of restore keys
-     * @param useBinstall Use cargo-binstall if true
-     */
-    static async install(program, version = 'latest', cachePrefix, useBinstall = true) {
-        const cargoBin = await io.which('cargo', true);
-        const binDir = Cargo.binDir();
-        let cachePath;
-        if (process.platform === 'win32') {
-            cachePath = [path_1.default.join(binDir, `${program}.exe`)];
-        }
-        else {
-            cachePath = [path_1.default.join(binDir, program)];
-        }
-        const cachePrefixFinal = cachePrefix !== 'no-cache' ? cachePrefix : undefined;
-        // Helper to check if program is already installed
-        async function isInstalled() {
-            try {
-                await io.which(program, true);
-                return true;
-            }
-            catch {
-                return false;
-            }
-        }
-        // Helper to resolve latest version from crates.io
-        async function resolveVersion(crate) {
-            if (version && version !== 'latest')
-                return version;
-            const client = new http.HttpClient('rust-all-action');
-            const url = `https://crates.io/api/v1/crates/${crate}`;
-            const resp = await client.getJson(url);
-            if (!resp.result)
-                throw new Error('Unable to fetch latest crate version');
-            return resp.result.crate.newest_version;
-        }
-        // Check if already installed
-        if (await isInstalled()) {
-            core.debug(`${program} already installed`);
-            return;
-        }
-        // Restore from cache
-        const resolvedVersion = await resolveVersion(program);
-        const cacheKey = cachePrefixFinal
-            ? (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${program}`, resolvedVersion, true)
-            : undefined;
-        if (cacheKey && (await (0, cache_1.restoreFromCache)(cachePath, cacheKey)))
-            return;
-        // If binstall requested, ensure it's installed
-        if (useBinstall) {
-            await (0, binstall_1.ensureBinstall)(cachePrefixFinal);
-        }
-        // Install the program
-        await core.group(`${useBinstall ? 'binstall' : 'install'} ${program}@${resolvedVersion}`, async () => {
-            const args = useBinstall === true ? ['binstall', '--no-confirm'] : ['install'];
-            if (resolvedVersion && resolvedVersion !== 'latest') {
-                args.push('--version', resolvedVersion);
-            }
-            args.push(program);
-            await actionexec.exec(cargoBin, args);
-        });
-        // Save to cache
-        if (cacheKey)
-            await (0, cache_1.saveToCache)(cachePath, cacheKey);
-        return;
-    }
-    // Executes a cargo command with given arguments
-    static async exec(args, options) {
-        if ((0, os_1.platform)() === 'win32') {
-            // On Windows, we have to use powershell because otherwise env vars are not recignized by cargo
-            await (0, util_1.spawnAsync)('cargo', args, {
-                ...options,
-                shell: 'bash',
-                stdio: 'inherit',
-                env: process.env,
-            });
-        }
-        else {
-            await actionexec.exec('cargo', args, {
-                ...options,
-                env: process.env,
-            });
-        }
-    }
-}
-exports.Cargo = Cargo;
 
 
 /***/ }),
@@ -44908,9 +44690,9 @@ const exec_1 = __nccwpck_require__(58872);
 const node_console_1 = __nccwpck_require__(37540);
 const node_os_1 = __nccwpck_require__(48161);
 const node_path_1 = tslib_1.__importDefault(__nccwpck_require__(76760));
-const build_cache_js_1 = __nccwpck_require__(84954);
-const cargo_js_1 = __nccwpck_require__(21253);
-const rustup_js_1 = __nccwpck_require__(61154);
+const build_cache_js_1 = __nccwpck_require__(90067);
+const cargo_js_1 = __nccwpck_require__(38472);
+const rustup_js_1 = __nccwpck_require__(30489);
 const workflows_js_1 = __nccwpck_require__(68027);
 // Default workflows to run if 'all' is specified
 const all_default = ['fmt', 'clippy', 'shear', 'test', 'doc'];
@@ -45092,7 +44874,230 @@ function workflowFilter(cfg, flow) {
 
 /***/ }),
 
-/***/ 61154:
+/***/ 27571:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ensureBinstall = ensureBinstall;
+const tslib_1 = __nccwpck_require__(31577);
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+const io = tslib_1.__importStar(__nccwpck_require__(73357));
+const child_process_1 = __nccwpck_require__(35317);
+const cache_impl_1 = __nccwpck_require__(36609);
+const cargo_1 = __nccwpck_require__(38472);
+// Ensures that cargo-binstall is installed, using caching if specified
+// otherwise installs it directly
+async function ensureBinstall(cachePrefix) {
+    const binstallPath = await io.which('binstall', false);
+    if (binstallPath) {
+        core.debug('binstall already installed');
+        return;
+    }
+    const cachePrefixFinal = cachePrefix == 'no-cache' ? undefined : cachePrefix;
+    const binDir = cargo_1.Cargo.binDir();
+    // try get from cache first
+    const cacheKey = (0, cache_impl_1.generateCacheKey)('binstall', 'any', true);
+    if (cachePrefixFinal && (await (0, cache_impl_1.restoreFromCache)([binDir], cacheKey))) {
+        core.info('Restored binstall from cache');
+        return;
+    }
+    await core.group('Installing binstall', async () => {
+        if (process.platform === 'win32') {
+            await installBinstallWindows();
+        }
+        else if (process.platform === 'linux' || process.platform === 'darwin') {
+            await installBinstallLinuxMac();
+        }
+        else {
+            cargo_1.Cargo.install('cargo-binstall', 'latest', undefined, false);
+        }
+        core.info('Installed cargo-binstall');
+        // save to cache
+        if (cachePrefixFinal) {
+            await (0, cache_impl_1.saveToCache)([binDir], cacheKey);
+        }
+    });
+}
+// Installs cargo-binstall on Linux or macOS
+async function installBinstallLinuxMac() {
+    (0, child_process_1.execSync)(`curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash`);
+}
+// Installs cargo-binstall on Windows
+async function installBinstallWindows() {
+    (0, child_process_1.execSync)(`Set-ExecutionPolicy Unrestricted -Scope Process; iex (iwr "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.ps1").Content`, { shell: 'powershell.exe' });
+}
+
+
+/***/ }),
+
+/***/ 38472:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Cargo = void 0;
+const tslib_1 = __nccwpck_require__(31577);
+const core = tslib_1.__importStar(__nccwpck_require__(59999));
+const actionexec = tslib_1.__importStar(__nccwpck_require__(58872));
+const http = tslib_1.__importStar(__nccwpck_require__(80787));
+const io = tslib_1.__importStar(__nccwpck_require__(73357));
+const console_1 = __nccwpck_require__(64236);
+const fs_1 = __nccwpck_require__(79896);
+const os_1 = __nccwpck_require__(70857);
+const path_1 = tslib_1.__importDefault(__nccwpck_require__(16928));
+const process_1 = __nccwpck_require__(932);
+const toml = tslib_1.__importStar(__nccwpck_require__(19435));
+const cache_impl_1 = __nccwpck_require__(36609);
+const util_1 = __nccwpck_require__(75989);
+const binstall_1 = __nccwpck_require__(27571);
+class Cargo {
+    /**
+     * @returns Path to cargo target directory
+     */
+    static targetDir(projectDir) {
+        return process.env.CARGO_TARGET_DIR || path_1.default.join(projectDir, 'target');
+    }
+    /**
+     * @returns Path to cargo binary directory
+     */
+    static binDir() {
+        const cargoHome = Cargo.cargoHome();
+        return path_1.default.join(cargoHome, 'bin');
+    }
+    static cargoHome() {
+        return process.env.CARGO_HOME || path_1.default.join((0, os_1.homedir)() || '', '.cargo');
+    }
+    /**
+     * @returns Path to rustup home directory
+     */
+    static rustupHome() {
+        return process.env.RUSTUP_HOME || path_1.default.join((0, os_1.homedir)() || '', '.rustup');
+    }
+    static cargoLock(projectDir) {
+        return path_1.default.join(projectDir, 'Cargo.lock');
+    }
+    static async rustToolchainTomlChannel(dir = (0, process_1.cwd)()) {
+        if (!(0, fs_1.existsSync)(path_1.default.join(dir, 'rust-toolchain.toml'))) {
+            core.debug('No rust-toolchain.toml found');
+            return;
+        }
+        let tomlContent;
+        try {
+            const toolchainToml = path_1.default.join(dir, 'rust-toolchain.toml');
+            const content = await (0, fs_1.readFileSync)(toolchainToml, 'utf8');
+            tomlContent = toml.parse(content);
+        }
+        catch (error) {
+            (0, console_1.warn)('Failed to parse rust-toolchain.toml.');
+            return;
+        }
+        let channel = tomlContent?.toolchain?.channel;
+        if (typeof channel !== 'string') {
+            return;
+        }
+        // Remove any suffixes like "-2024-01-01" from the channel
+        return channel;
+    }
+    /**
+     * Ensures a cargo-installed binary exists. If not, installs it using cargo or cargo-binstall.
+     * Optionally restores/saves to cache.
+     *
+     * @param program Program name (e.g. "cargo-nextest")
+     * @param version Version or "latest"
+     * @param cachePrefix Cache key prefix (omit or "no-cache" to skip caching)
+     * @param restoreKeys Optional list of restore keys
+     * @param useBinstall Use cargo-binstall if true
+     */
+    static async install(program, version = 'latest', cachePrefix, useBinstall = true) {
+        const cargoBin = await io.which('cargo', true);
+        const binDir = Cargo.binDir();
+        let cachePath;
+        if (process.platform === 'win32') {
+            cachePath = [path_1.default.join(binDir, `${program}.exe`)];
+        }
+        else {
+            cachePath = [path_1.default.join(binDir, program)];
+        }
+        const cachePrefixFinal = cachePrefix !== 'no-cache' ? cachePrefix : undefined;
+        // Helper to check if program is already installed
+        async function isInstalled() {
+            try {
+                await io.which(program, true);
+                return true;
+            }
+            catch {
+                return false;
+            }
+        }
+        // Helper to resolve latest version from crates.io
+        async function resolveVersion(crate) {
+            if (version && version !== 'latest')
+                return version;
+            const client = new http.HttpClient('rust-all-action');
+            const url = `https://crates.io/api/v1/crates/${crate}`;
+            const resp = await client.getJson(url);
+            if (!resp.result)
+                throw new Error('Unable to fetch latest crate version');
+            return resp.result.crate.newest_version;
+        }
+        // Check if already installed
+        if (await isInstalled()) {
+            core.debug(`${program} already installed`);
+            return;
+        }
+        // Restore from cache
+        const resolvedVersion = await resolveVersion(program);
+        const cacheKey = cachePrefixFinal
+            ? (0, cache_impl_1.generateCacheKey)(`${cachePrefixFinal}-${program}`, resolvedVersion, true)
+            : undefined;
+        if (cacheKey && (await (0, cache_impl_1.restoreFromCache)(cachePath, cacheKey)))
+            return;
+        // If binstall requested, ensure it's installed
+        if (useBinstall) {
+            await (0, binstall_1.ensureBinstall)(cachePrefixFinal);
+        }
+        // Install the program
+        await core.group(`${useBinstall ? 'binstall' : 'install'} ${program}@${resolvedVersion}`, async () => {
+            const args = useBinstall === true ? ['binstall', '--no-confirm'] : ['install'];
+            if (resolvedVersion && resolvedVersion !== 'latest') {
+                args.push('--version', resolvedVersion);
+            }
+            args.push(program);
+            await actionexec.exec(cargoBin, args);
+        });
+        // Save to cache
+        if (cacheKey)
+            await (0, cache_impl_1.saveToCache)(cachePath, cacheKey);
+        return;
+    }
+    // Executes a cargo command with given arguments
+    static async exec(args, options) {
+        if ((0, os_1.platform)() === 'win32') {
+            // On Windows, we have to use powershell because otherwise env vars are not recignized by cargo
+            await (0, util_1.spawnAsync)('cargo', args, {
+                ...options,
+                shell: 'bash',
+                stdio: 'inherit',
+                env: process.env,
+            });
+        }
+        else {
+            await actionexec.exec('cargo', args, {
+                ...options,
+                env: process.env,
+            });
+        }
+    }
+}
+exports.Cargo = Cargo;
+
+
+/***/ }),
+
+/***/ 30489:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -45115,9 +45120,9 @@ const fs_1 = __nccwpck_require__(79896);
 const promises_1 = __nccwpck_require__(91943);
 const path = tslib_1.__importStar(__nccwpck_require__(16928));
 const process_1 = __nccwpck_require__(932);
-const cache_1 = __nccwpck_require__(26619);
-const cargo_1 = __nccwpck_require__(21253);
+const cache_impl_1 = __nccwpck_require__(36609);
 const lib_1 = __nccwpck_require__(71374);
+const cargo_1 = __nccwpck_require__(38472);
 // Lists installed Rust toolchains
 async function listToolchains() {
     const dir = path.join(cargo_1.Cargo.rustupHome(), 'toolchains');
@@ -45219,7 +45224,7 @@ async function prepareToolchain(startTime, toolchain, additionalComponents = [],
         const hostTriple = await getHostTriple();
         const toolchains = await listToolchains();
         const toolchainPath = path.join(cargo_1.Cargo.rustupHome(), 'toolchains', `${toolchain}-${hostTriple}`);
-        const cacheKey = (0, cache_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${hostTriple}`, undefined, false);
+        const cacheKey = (0, cache_impl_1.generateCacheKey)(`${cachePrefixFinal}-${toolchain}-${hostTriple}`, undefined, false);
         // Check if we have the toolchain already installed
         if (toolchains.some((t) => t.includes(toolchain))) {
             core.debug(`Toolchain ${toolchain} already installed`);
@@ -45230,7 +45235,7 @@ async function prepareToolchain(startTime, toolchain, additionalComponents = [],
         }
         // Try restore from cache
         if (cachePrefixFinal &&
-            (await (0, cache_1.restoreFromCache)([toolchainPath], cacheKey))) {
+            (await (0, cache_impl_1.restoreFromCache)([toolchainPath], cacheKey))) {
             core.info(`Restored toolchain ${toolchain} from cache key ${cacheKey}`);
             const hadToInstall = await ensureComponents();
             if (hadToInstall) {
@@ -45264,6 +45269,7 @@ exports.spawnAsync = spawnAsync;
 const tslib_1 = __nccwpck_require__(31577);
 const core = tslib_1.__importStar(__nccwpck_require__(59999));
 const node_child_process_1 = __nccwpck_require__(31421);
+/// Spawns a command asynchronously, returning a promise that resolves
 function spawnAsync(cmd, args = [], opts = {
     stdio: 'inherit',
 }) {
@@ -45301,7 +45307,7 @@ exports.workflowConfig = workflowConfig;
 const tslib_1 = __nccwpck_require__(31577);
 const node_console_1 = __nccwpck_require__(37540);
 const string_argv_1 = tslib_1.__importDefault(__nccwpck_require__(30761));
-const cargo_1 = __nccwpck_require__(21253);
+const cargo_1 = __nccwpck_require__(38472);
 class TestWorkflow {
     config;
     name = 'test';

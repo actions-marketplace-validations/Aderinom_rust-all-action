@@ -1,7 +1,7 @@
 import { info } from 'node:console';
 import parseArgsStringToArgv from 'string-argv';
-import { Cargo } from './cargo';
 import { Input } from './input';
+import { Cargo } from './rust/cargo';
 
 // Definition of a workflow
 export interface Workflow {

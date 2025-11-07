@@ -3,14 +3,14 @@ import { exec } from '@actions/exec';
 import { warn } from 'node:console';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { buildCacheStrategy } from './build-cache.js';
-import { Cargo } from './cargo.js';
+import { buildCacheStrategy } from './cache/build-cache.js';
 import { Input } from './input.js';
+import { Cargo } from './rust/cargo.js';
 import {
   getGlobalDefaultToolchain,
   prepareToolchain,
   setDefaultToolchain,
-} from './rustup.js';
+} from './rust/rustup.js';
 import {
   ClippyWorkflow,
   DenyWorkflow,

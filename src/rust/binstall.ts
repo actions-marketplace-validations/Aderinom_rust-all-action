@@ -1,7 +1,11 @@
 import * as core from '@actions/core';
 import * as io from '@actions/io';
 import { execSync } from 'child_process';
-import { generateCacheKey, restoreFromCache, saveToCache } from './cache';
+import {
+  generateCacheKey,
+  restoreFromCache,
+  saveToCache,
+} from '../cache/cache-impl';
 import { Cargo } from './cargo';
 
 // Ensures that cargo-binstall is installed, using caching if specified
